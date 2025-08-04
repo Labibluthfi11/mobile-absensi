@@ -1,10 +1,10 @@
-// lib/screens/splash/splash_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:absensi_app/providers/auth_provider.dart';
-import 'package:absensi_app/screens/auth/login.screen.dart'; // Perbaiki ini jadi login_screen.dart
-import 'package:absensi_app/screens/home/home.screen.dart'; // Perbaiki ini jadi home_screen.dart
+import 'package:google_fonts/google_fonts.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/absensi_provider.dart';
+import 'package:absensi_app/screens/auth/login.screen.dart';
+import 'package:absensi_app/screens/home/home.screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,174 +13,158 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  late Animation<double> _logoFadeAnimation;
-  late Animation<double> _logoScaleAnimation;
-  late Animation<Offset> _logoSlideAnimation;
-
-  late Animation<double> _textFadeAnimation;
-  late Animation<Offset> _textSlideAnimation;
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late AnimationController _logoController;
+  late Animation<double> _logoAnimation;
+  late AnimationController _textController;
+  late Animation<Offset> _textSlide;
 
   @override
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
+    _logoController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration: const Duration(milliseconds: 1200),
     );
 
-    _logoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOutCubic),
-      ),
+    _logoAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: Curves.easeOutBack),
     );
 
-    _logoScaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
-      ),
+    _textController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
 
-    _logoSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
+    _textSlide = Tween<Offset>(
+      begin: const Offset(0, 0.5),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOutQuart),
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOut));
 
-    _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.5, 0.9, curve: Curves.easeIn),
-      ),
-    );
-
-    _textSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.5, 1.0, curve: Curves.easeOutBack),
-      ),
-    );
-
-    _controller.forward();
-
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _navigateToNextScreen();
-      }
-    });
+    _startAnimations();
   }
 
-  Future<void> _navigateToNextScreen() async {
-    await Future.delayed(const Duration(milliseconds: 700));
+  Future<void> _startAnimations() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    _logoController.forward();
+    await Future.delayed(const Duration(milliseconds: 300));
+    _textController.forward();
 
+    await Future.delayed(const Duration(milliseconds: 1000));
+    _checkAuthStatus();
+  }
+
+  Future<void> _checkAuthStatus() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
 
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 800), // Durasi transisi
-        pageBuilder: (context, animation, secondaryAnimation) {
-          // Ini adalah widget yang akan ditampilkan SETELAH splash screen
-          if (authProvider.isAuthenticated) {
-            return const HomeScreen();
-          } else {
-            return const LoginScreen();
-          }
-        },
-        // --- INI ADALAH BAGIAN YANG HARUS KOSONG / DIHILANGKAN ---
-        // Dengan tidak adanya transitionsBuilder, Flutter akan menggunakan transisi default.
-        // Jadi, Splash Screen akan memudar (karena pushReplacement), dan layar baru muncul normal.
-        // Tidak ada lagi kode transitionsBuilder di sini!
-      ),
-    );
+    if (authProvider.isLoading) {
+      await Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        return Provider.of<AuthProvider>(context, listen: false).isLoading;
+      });
+    }
+
+    if (!mounted) return;
+
+    if (authProvider.isAuthenticated) {
+      await absensiProvider.fetchMyAbsensi();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    } else {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _logoController.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = Theme.of(context).primaryColor;
-    final Color dustyLatte100 = const Color(0xFFF4F0EB);
-    final Color dustyLatte400 = const Color(0xFFD4C8B5);
-
-    final List<Color> gradientColors = [
-      dustyLatte400,
-      dustyLatte100,
-    ];
-
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: gradientColors,
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SlideTransition(
-                position: _logoSlideAnimation,
-                child: FadeTransition(
-                  opacity: _logoFadeAnimation,
-                  child: ScaleTransition(
-                    scale: _logoScaleAnimation,
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      width: 220,
-                      height: 220,
+        child: Stack(
+          children: [
+            // Efek glow bola premium
+            Positioned(
+              top: -100,
+              left: -100,
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Color(0xFFFB923C), Colors.transparent],
+                    radius: 0.8,
+                  ),
+                ),
+              ),
+            ),
+
+            // Konten utama
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ScaleTransition(
+                    scale: _logoAnimation,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(100),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orangeAccent.withOpacity(0.5),
+                            blurRadius: 30,
+                            spreadRadius: 5,
+                          )
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(100),
+                        child: Image.asset(
+                          'assets/images/amb2.jpg',
+                          width: 130,
+                          height: 130,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SlideTransition(
-                position: _textSlideAnimation,
-                child: FadeTransition(
-                  opacity: _textFadeAnimation,
-                  child: Column(
-                    children: [
-                      Text(
-                        'Absensi Pintar',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                          letterSpacing: 1.5,
-                        ),
+                  const SizedBox(height: 30),
+                  SlideTransition(
+                    position: _textSlide,
+                    child: Text(
+                      'ANSEL FOR YOU',
+                      style: GoogleFonts.poppins(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        letterSpacing: 1.2,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Mudah, Cepat, Akurat',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

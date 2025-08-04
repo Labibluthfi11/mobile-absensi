@@ -19,18 +19,37 @@ dependencies:
   geolocator: ^11.0.0
   intl: ^0.19.0
   provider: ^6.1.2
+  google_fonts: ^6.2.1
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  # TAMBAHKAN INI UNTUK flutter_launcher_icons
+  flutter_launcher_icons: "^0.13.1" # Pastikan kamu pakai versi terbaru atau versi yang stabil dari pub.dev
 
 # The following section is specific to Flutter packages.
-flutter: # <--- BLOK 'flutter' YANG BENAR
+flutter:
   uses-material-design: true
 
-  assets: # <--- PASTIKAN 'assets:' DI SINI, INDENTASI BENAR (2 spasi dari 'flutter:')
-    - assets/images/ # <--- DAN INI JUGA INDENTASI BENAR (4 spasi dari 'flutter:')
+  assets:
+    - assets/images/ # Ini sudah benar untuk memasukkan semua gambar di folder ini
+    # Kamu tidak perlu menambahkan 'assets/images/amb2.jpg' secara spesifik di sini
+    # karena 'assets/images/' sudah mencakup semua isinya.
 
   # Bagian komentar 'To add assets to your application...' dan contohnya
   # tidak perlu dihapus, biarkan saja, yang penting baris di atas sudah benar.
+
+# --- KONFIGURASI UNTUK flutter_launcher_icons DIMULAI DI SINI ---
+# Pastikan indentasinya sejajar dengan 'flutter:' di atas (tidak masuk ke dalam 'flutter:')
+flutter_launcher_icons:
+  android: true                 # Hasilkan ikon untuk Android
+  ios: true                     # Hasilkan ikon untuk iOS (jika kamu nanti juga develop iOS)
+  image_path: "assets/images/amb2.jpg" # PATH MENUJU GAMBAR LOGO KAMU
+  min_sdk_android: 21           # Sesuaikan dengan minSdkVersion kamu (biasanya 21 atau lebih tinggi)
+                                # Kamu bisa cek di android/app/build.gradle.kts, di defaultConfig.minSdk
+                                # Biasanya minSdk ini diambil dari flutter.minSdkVersion
+  # Jika kamu ingin ikon adaptif (untuk Android 8.0+), uncomment dan konfigurasi ini:
+  # adaptive_icon_background: "#FFFFFF" # Contoh warna putih sebagai latar belakang
+  # adaptive_icon_foreground: "assets/images/amb2_foreground.png" # Contoh jika kamu punya gambar foreground terpisah

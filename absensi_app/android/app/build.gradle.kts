@@ -7,8 +7,11 @@ plugins {
 
 android {
     namespace = "com.example.absensi_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Baris ini diubah dari 'flutter.compileSdkVersion' menjadi '36'
+    compileSdk = 36 
+    
+    // Baris ini diubah dari 'flutter.ndkVersion' menjadi versi spesifik
+    ndkVersion = "27.0.12077973" 
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
