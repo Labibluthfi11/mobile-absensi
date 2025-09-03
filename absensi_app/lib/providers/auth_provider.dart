@@ -32,16 +32,24 @@ class AuthProvider extends ChangeNotifier {
 
     if (_token != null && userDataJson != null) {
       try {
-        _user = User.fromJson(jsonDecode(userDataJson));
+        final decodedData = jsonDecode(userDataJson);
+        // Pastikan decodedData adalah Map<String, dynamic> sebelum mem-parsing
+        if (decodedData is Map<String, dynamic>) {
+          _user = User.fromJson(decodedData);
+          notifyListeners();
+        } else {
+          print('Error: User data from SharedPreferences is not a Map<String, dynamic>. Type: ${decodedData.runtimeType}, Data: $decodedData');
+          await logout(); // Hapus data yang tidak valid
+        }
       } catch (e) {
         print('Error decoding user data from SharedPreferences: $e');
-        await logout();
+        await logout(); // Hapus data yang tidak valid
       }
     } else {
       _user = null;
       _token = null;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -56,12 +64,12 @@ class AuthProvider extends ChangeNotifier {
       );
 
       final String? accessToken = result['access_token'];
-      final Map<String, dynamic>? userData = result['user'];
+      final User? userObject = result['user'];
 
-      if (accessToken != null && userData != null) {
+      if (accessToken != null && userObject != null) {
         _token = accessToken;
-        _user = User.fromJson(userData);
-        
+        _user = userObject;
+
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_authTokenKey, _token!);
         await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
@@ -92,6 +100,8 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String passwordConfirmation,
+    required String idKaryawan, // <--- DITAMBAHKAN
+    required String departemen, // <--- DITAMBAHKAN
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -103,15 +113,17 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
         passwordConfirmation: passwordConfirmation,
+        idKaryawan: idKaryawan, // <--- DITAMBAHKAN
+        departemen: departemen, // <--- DITAMBAHKAN
       );
 
       final String? accessToken = result['access_token'];
-      final Map<String, dynamic>? userData = result['user'];
+      final User? userObject = result['user'];
 
-      if (accessToken != null && userData != null) {
+      if (accessToken != null && userObject != null) {
         _token = accessToken;
-        _user = User.fromJson(userData);
-        
+        _user = userObject;
+
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_authTokenKey, _token!);
         await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));

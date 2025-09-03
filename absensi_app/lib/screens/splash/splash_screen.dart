@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/absensi_provider.dart';
+import 'package:absensi_app/providers/auth_provider.dart';
+import 'package:absensi_app/providers/absensi_provider.dart';
 import 'package:absensi_app/screens/auth/login.screen.dart';
 import 'package:absensi_app/screens/home/home.screen.dart';
+
+// Definisi warna yang digunakan dari video
+const Color _primaryColor = Color(0xFF003366);
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,44 +17,44 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late AnimationController _logoController;
+  late AnimationController _animationController;
   late Animation<double> _logoAnimation;
-  late AnimationController _textController;
-  late Animation<Offset> _textSlide;
+  late Animation<double> _text1Animation;
+  late Animation<double> _text2Animation;
 
   @override
   void initState() {
     super.initState();
-
-    _logoController = AnimationController(
+    _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 2500),
     );
 
-    _logoAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeOutBack),
+    // Animasi untuk logo (skala dan fade-in)
+    _logoAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
     );
 
-    _textController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
+    // Animasi untuk teks pertama ("PT ANSEL MUDA BERKARYA")
+    _text1Animation = CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.5, 0.8, curve: Curves.easeOut),
     );
 
-    _textSlide = Tween<Offset>(
-      begin: const Offset(0, 0.5),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOut));
+    // Animasi untuk teks kedua ("Ansel For You")
+    _text2Animation = CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
+    );
 
-    _startAnimations();
+    _startAnimationsAndNavigation();
   }
 
-  Future<void> _startAnimations() async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    _logoController.forward();
-    await Future.delayed(const Duration(milliseconds: 300));
-    _textController.forward();
-
-    await Future.delayed(const Duration(milliseconds: 1000));
+  Future<void> _startAnimationsAndNavigation() async {
+    _animationController.forward();
+    await Future.delayed(const Duration(milliseconds: 3000));
+    if (!mounted) return;
     _checkAuthStatus();
   }
 
@@ -84,84 +87,73 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
-    _logoController.dispose();
-    _textController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Stack(
+      backgroundColor: _primaryColor,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Efek glow bola premium
-            Positioned(
-              top: -100,
-              left: -100,
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [Color(0xFFFB923C), Colors.transparent],
-                    radius: 0.8,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Menggunakan nama file logo yang benar
+                ScaleTransition(
+                  scale: _logoAnimation,
+                  child: Opacity(
+                    opacity: _logoAnimation.value,
+                    child: Image.asset(
+                      'assets/images/ansel-biru.png',
+                      width: 200, // Ukuran logo, bisa disesuaikan
+                      height: 200,
+                    ),
                   ),
                 ),
-              ),
-            ),
-
-            // Konten utama
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ScaleTransition(
-                    scale: _logoAnimation,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(100),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orangeAccent.withOpacity(0.5),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          )
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(100),
-                        child: Image.asset(
-                          'assets/images/amb2.jpg',
-                          width: 130,
-                          height: 130,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  SlideTransition(
-                    position: _textSlide,
+                const SizedBox(width: 15), // Jarak antara logo dan teks
+                // Teks "PT ANSEL MUDA BERKARYA"
+                FadeTransition(
+                  opacity: _text1Animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(1.0, 0.0), // Animasi dari kanan
+                      end: Offset.zero,
+                    ).animate(_text1Animation),
                     child: Text(
-                      'ANSEL FOR YOU',
+                      'PT ANSEL\nMUDA\nBERKARYA',
                       style: GoogleFonts.poppins(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w400,
                         color: Colors.white,
-                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Teks "Ansel For You"
+            FadeTransition(
+              opacity: _text2Animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.5),
+                  end: Offset.zero,
+                ).animate(_text2Animation),
+                child: Text(
+                  'Ansel For You',
+                  style: GoogleFonts.poppins(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
             ),
           ],

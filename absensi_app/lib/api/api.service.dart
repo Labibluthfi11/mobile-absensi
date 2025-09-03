@@ -1,3 +1,5 @@
+// lib/services/api_service.dart
+
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,12 +44,13 @@ class ApiService {
   }
 
   // --- Auth Methods ---
-  // Perbaikan: Sekarang hanya mengembalikan respons dari API, tanpa menyimpan token.
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String password,
     required String passwordConfirmation,
+    required String idKaryawan, // <--- DITAMBAHKAN
+    required String departemen, // <--- DITAMBAHKAN
   }) async {
     try {
       final response = await _dio.post(
@@ -57,9 +60,20 @@ class ApiService {
           'email': email,
           'password': password,
           'password_confirmation': passwordConfirmation,
+          'id_karyawan': idKaryawan, // <--- DITAMBAHKAN
+          'departemen': departemen, // <--- DITAMBAHKAN
         },
       );
-      return response.data;
+      if (response.statusCode == 201) {
+        await _saveToken(response.data['access_token']);
+        final userData = response.data['user']; 
+        if (userData != null) {
+          return {'success': true, 'user': User.fromJson(userData), 'access_token': response.data['access_token']}; 
+        }
+        return {'success': true, 'message': 'Registration successful, but user data not found.'};
+      } else {
+        return {'success': false, 'message': response.data['message'] ?? 'Registration failed.'};
+      }
     } on DioException catch (e) {
       return _handleDioError(e, 'Registration failed');
     } catch (e) {
@@ -79,14 +93,23 @@ class ApiService {
           'password': password,
         },
       );
-      return response.data;
+      if (response.statusCode == 200) {
+        await _saveToken(response.data['access_token']);
+        final userData = response.data['user']; 
+        if (userData != null) {
+          return {'success': true, 'user': User.fromJson(userData), 'access_token': response.data['access_token']}; 
+        }
+        return {'success': true, 'message': 'Login successful, but user data not found.'};
+      } else {
+        return {'success': false, 'message': response.data['message'] ?? 'Login failed.'};
+      }
     } on DioException catch (e) {
       return _handleDioError(e, 'Login failed');
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
-  
+
   Future<void> logout() async {
     try {
       await _dio.post('/logout');
@@ -106,9 +129,11 @@ class ApiService {
       }
       final response = await _dio.get('/user');
       if (response.statusCode == 200 && response.data != null) {
-        final userData = response.data['user'];
-        if (userData is Map<String, dynamic>) {
-          return User.fromJson(userData);
+        if (response.data is Map<String, dynamic>) {
+          return User.fromJson(response.data);
+        } else {
+          print('Error: response.data is not a Map<String, dynamic> in getAuthenticatedUser. Type: ${response.data.runtimeType}, Data: ${response.data}');
+          return null;
         }
       }
       return null;
@@ -131,7 +156,6 @@ class ApiService {
     required double lat,
     required double lng,
     required String status,
-    // File? fileBukti, // Tambahkan ini jika sakit/izin butuh bukti file
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -140,7 +164,6 @@ class ApiService {
         'lat': lat,
         'lng': lng,
         'status': status,
-        // if (fileBukti != null) 'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileBukti.path.split('/').last),
       });
 
       final response = await _dio.post('/absensi/masuk', data: formData);
@@ -159,7 +182,7 @@ class ApiService {
     required File foto,
     required double lat,
     required double lng,
-    String? tipe, // 'lembur', 'cuti'
+    String? tipe,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -200,6 +223,64 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> absenSakit({
+    required File fileBukti,
+    required String catatan,
+  }) async {
+    try {
+      String fileName = fileBukti.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
+        'catatan': catatan,
+        'tipe': 'sakit',
+      });
+
+      final response = await _dio.post(
+        '/absensi/sakit',
+        data: formData,
+      );
+
+      if (response.data != null) {
+        return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin sakit berhasil.'};
+      }
+      return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal mengajukan izin sakit');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> absenIzin({
+    required File fileBukti,
+    required String catatan,
+  }) async {
+    try {
+      String fileName = fileBukti.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        // Pastikan key 'file_bukti' sesuai dengan yang diharapkan backend kamu
+        'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
+        'catatan': catatan,
+        // Pastikan key 'tipe' dan nilainya sesuai dengan yang diharapkan backend kamu
+        'tipe': 'izin',
+      });
+
+      final response = await _dio.post(
+        '/absensi/izin', // Ganti dengan endpoint yang sesuai
+        data: formData,
+      );
+
+      if (response.data != null) {
+        return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin berhasil.'};
+      }
+      return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal mengajukan izin');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   // --- Token Management ---
   Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -225,7 +306,12 @@ class ApiService {
           message = e.response!.data['message'];
         } else if (e.response!.data.containsKey('errors') && e.response!.data['errors'] != null) {
           Map<String, dynamic> errors = e.response!.data['errors'];
-          message = errors.values.first[0];
+          // Periksa apakah errors.values.first tidak null sebelum mengakses indeks 0
+          if (errors.values.isNotEmpty && errors.values.first.isNotEmpty) {
+            message = errors.values.first[0];
+          } else {
+            message = 'Validation error.';
+          }
         }
       } else {
         message = 'Server error: ${e.response!.statusCode}';

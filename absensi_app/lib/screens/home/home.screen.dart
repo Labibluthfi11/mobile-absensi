@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import 'absensi_camera_screen.dart';
+import '../home/absensi_camera_screen.dart';
 import 'attendance_history_screen.dart';
 import 'profile_screen.dart';
+import 'absensi_sakit_form_screen.dart'; // Import file baru
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,13 +14,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Indeks untuk mengontrol BottomNavigationBar
-  int _selectedIndex = 0;
+  int _selectedIndex = 1; // Mengatur default index ke Absen (tengah)
 
   // Daftar widget/layar yang akan ditampilkan
   static const List<Widget> _widgetOptions = <Widget>[
     AttendanceHistoryScreen(),
     AbsensiCameraScreen(),
+    SakitFormScreen(), // Tambahkan form sakit ke daftar layar
     ProfileScreen(),
   ];
 
@@ -33,9 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     
-    // Periksa status otentikasi. Jika tidak login, arahkan ke halaman login.
+    // Pastikan pengguna sudah terautentikasi sebelum melanjutkan
     if (!authProvider.isAuthenticated) {
-      // Menggunakan Future.microtask untuk menghindari error setState saat build.
       Future.microtask(() => Navigator.of(context).pushReplacementNamed('/login'));
       return const Scaffold(
         body: Center(
@@ -45,20 +45,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     
     return Scaffold(
+      backgroundColor: Colors.white, // Latar belakang utama aplikasi putih
       appBar: AppBar(
-        title: const Text('Aplikasi Absensi', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.blueAccent,
+        title: const Text(
+          'Ansel Muda Berkarya', 
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ), // Tanda kurung dan koma yang hilang sudah ditambahkan
+        ),
+        backgroundColor: Colors.blueAccent, // Latar belakang AppBar biru
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            tooltip: 'Logout',
-            onPressed: () async {
-              await authProvider.logout();
-              // navigasi ke halaman login akan ditangani di AuthWrapper
-            },
-          ),
-        ],
+        centerTitle: true,
       ),
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),
@@ -74,13 +72,19 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Absen',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.local_hospital_rounded),
+            label: 'Sakit',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profil',
           ),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.blueAccent,
+        unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
       ),
     );
   }
