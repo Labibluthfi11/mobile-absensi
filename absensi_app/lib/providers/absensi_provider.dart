@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/models/absensi_model.dart';
 import 'dart:io';
-import 'package:intl/intl.dart';
 
 class AbsensiProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -15,7 +14,7 @@ class AbsensiProvider with ChangeNotifier {
   String? _errorMessage;
   bool _isInitialLoadComplete = false;
 
-  // New properties for attendance statistics
+  // Statistik
   int _totalHadir = 0;
   int _totalIzin = 0;
   int _totalSakit = 0;
@@ -23,13 +22,13 @@ class AbsensiProvider with ChangeNotifier {
   int _totalLembur = 0;
   int _totalTanpaKet = 0;
 
+  // Getters
   List<Absensi> get myAbsensiList => _myAbsensiList;
   Absensi? get currentDayAbsensi => _currentDayAbsensi;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isInitialLoadComplete => _isInitialLoadComplete;
 
-  // New getters for attendance statistics
   int get totalHadir => _totalHadir;
   int get totalIzin => _totalIzin;
   int get totalSakit => _totalSakit;
@@ -38,9 +37,11 @@ class AbsensiProvider with ChangeNotifier {
   int get totalTanpaKet => _totalTanpaKet;
 
   AbsensiProvider() {
-    fetchMyAbsensi();
+    // Auto fetch pas provider pertama kali dipanggil
+    refreshAbsensi();
   }
 
+  // ======== STATE HANDLER ========
   void setIsLoading(bool value) {
     _isLoading = value;
     notifyListeners();
@@ -51,18 +52,32 @@ class AbsensiProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // ======== FETCH DATA ========
+  Future<void> refreshAbsensi() async {
+    // Reset dulu supaya list lama ga kebawa
+    _myAbsensiList = [];
+    _currentDayAbsensi = null;
+    _errorMessage = null;
+    _isInitialLoadComplete = false;
+    notifyListeners();
+
+    await fetchMyAbsensi();
+  }
+
   Future<void> fetchMyAbsensi() async {
     setIsLoading(true);
     _errorMessage = null;
 
     try {
-      _myAbsensiList = await _apiService.getAbsensiMe();
+      final absensiList = await _apiService.getAbsensiMe();
+
+      // Pastikan data tidak null
+      _myAbsensiList = absensiList ?? [];
       await fetchCurrentDayAbsensi();
-      // Calculate statistics after fetching the list
       _calculateStatistics();
     } catch (e) {
       _errorMessage = 'Gagal mengambil data absensi: ${e.toString()}';
-      print('Error fetching absensi: $e');
+      debugPrint('Error fetchMyAbsensi: $e');
       _myAbsensiList = [];
       _currentDayAbsensi = null;
     } finally {
@@ -77,7 +92,9 @@ class AbsensiProvider with ChangeNotifier {
     try {
       _currentDayAbsensi = _myAbsensiList.firstWhere(
         (absensi) {
-          final absensiDate = absensi.checkInAt != null ? DateTime.parse(absensi.checkInAt!).toLocal() : null;
+          final absensiDate = absensi.checkInAt != null
+              ? DateTime.parse(absensi.checkInAt!).toLocal()
+              : null;
           if (absensiDate == null) return false;
           return absensiDate.year == now.year &&
               absensiDate.month == now.month &&
@@ -108,22 +125,35 @@ class AbsensiProvider with ChangeNotifier {
       if (_currentDayAbsensi?.id == -1) {
         _currentDayAbsensi = null;
       }
-    } catch (e) {
+    } catch (_) {
       _currentDayAbsensi = null;
     }
     notifyListeners();
   }
-  
-  // New private method to calculate statistics from the list
+
+  // ======== STATISTIK ========
   void _calculateStatistics() {
-    _totalHadir = _myAbsensiList.where((a) => a.status == 'Hadir').length;
-    _totalIzin = _myAbsensiList.where((a) => a.status == 'Izin').length;
-    _totalSakit = _myAbsensiList.where((a) => a.status == 'Sakit').length;
-    _totalTelat = _myAbsensiList.where((a) => a.status == 'Telat').length;
-    _totalLembur = _myAbsensiList.where((a) => a.tipe == 'Lembur').length;
-    _totalTanpaKet = _myAbsensiList.where((a) => a.status == 'Tanpa Keterangan').length;
+    _totalHadir = 0;
+    _totalIzin = 0;
+    _totalSakit = 0;
+    _totalTelat = 0;
+    _totalLembur = 0;
+    _totalTanpaKet = 0;
+
+    for (var absensi in _myAbsensiList) {
+      final status = absensi.status?.toLowerCase() ?? '';
+      final tipe = absensi.tipe?.toLowerCase() ?? '';
+
+      if (status == 'hadir') _totalHadir++;
+      if (status == 'izin') _totalIzin++;
+      if (status == 'sakit') _totalSakit++;
+      if (status == 'telat') _totalTelat++;
+      if (status == 'tanpa keterangan') _totalTanpaKet++;
+      if (tipe == 'lembur') _totalLembur++;
+    }
   }
 
+  // ======== ABSENSI ACTION ========
   Future<Map<String, dynamic>> absenMasuk({
     required File foto,
     required double lat,
@@ -131,7 +161,6 @@ class AbsensiProvider with ChangeNotifier {
     required String status,
   }) async {
     setIsLoading(true);
-    _errorMessage = null;
     Map<String, dynamic> result;
 
     try {
@@ -141,7 +170,6 @@ class AbsensiProvider with ChangeNotifier {
         lng: lng,
         status: status,
       );
-
       if (result['success'] == true) {
         await fetchMyAbsensi();
       } else {
@@ -164,7 +192,6 @@ class AbsensiProvider with ChangeNotifier {
     String? tipe,
   }) async {
     setIsLoading(true);
-    _errorMessage = null;
     Map<String, dynamic> result;
 
     try {
@@ -174,7 +201,6 @@ class AbsensiProvider with ChangeNotifier {
         lng: lng,
         tipe: tipe,
       );
-
       if (result['success'] == true) {
         await fetchMyAbsensi();
       } else {
@@ -195,7 +221,6 @@ class AbsensiProvider with ChangeNotifier {
     required String catatan,
   }) async {
     setIsLoading(true);
-    _errorMessage = null;
     Map<String, dynamic> result;
 
     try {
@@ -203,11 +228,10 @@ class AbsensiProvider with ChangeNotifier {
         fileBukti: fileBukti,
         catatan: catatan,
       );
-
       if (result['success'] == true) {
         await fetchMyAbsensi();
       } else {
-        _errorMessage = result['message'] ?? 'Pengajuan izin sakit gagal.';
+        _errorMessage = result['message'] ?? 'Pengajuan sakit gagal.';
       }
     } catch (e) {
       _errorMessage = 'Error absen sakit: ${e.toString()}';
@@ -224,7 +248,6 @@ class AbsensiProvider with ChangeNotifier {
     required String catatan,
   }) async {
     setIsLoading(true);
-    _errorMessage = null;
     Map<String, dynamic> result;
 
     try {
@@ -232,7 +255,6 @@ class AbsensiProvider with ChangeNotifier {
         fileBukti: fileBukti,
         catatan: catatan,
       );
-
       if (result['success'] == true) {
         await fetchMyAbsensi();
       } else {
@@ -248,6 +270,7 @@ class AbsensiProvider with ChangeNotifier {
     return result;
   }
 
+  // ======== RESET ========
   void resetState() {
     _myAbsensiList = [];
     _currentDayAbsensi = null;

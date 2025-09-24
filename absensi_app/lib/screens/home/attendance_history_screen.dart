@@ -260,6 +260,8 @@ class AttendanceHistoryScreen extends StatelessWidget {
         return Colors.cyan;
       case 'Tanpa Keterangan':
         return Colors.red;
+      case 'Lembur':
+        return const Color(0xFFFFD700); // Warna kuning
       default:
         return Colors.grey;
     }
