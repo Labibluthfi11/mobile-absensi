@@ -18,6 +18,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordConfirmationController = TextEditingController();
   final TextEditingController _idKaryawanController = TextEditingController();
   final TextEditingController _departemenController = TextEditingController();
+  
+  // <-- TAMBAHAN FITUR BARU: Variabel untuk menyimpan pilihan status
+  String _selectedEmploymentType = 'organik'; // Default ke Organik
 
   @override
   void dispose() {
@@ -42,6 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           passwordConfirmation: _passwordConfirmationController.text,
           idKaryawan: _idKaryawanController.text,
           departemen: _departemenController.text,
+          employmentType: _selectedEmploymentType, // <-- TAMBAHAN FITUR BARU
         );
 
         if (authProvider.isAuthenticated) {
@@ -195,6 +199,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   const SizedBox(height: 16.0),
+                  
+                  // <-- TAMBAHAN FITUR BARU: Dropdown Status Karyawan
+                  Text(
+                    'Status Karyawan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 8.0),
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[200],
+                      prefixIcon: const Icon(Icons.work),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    value: _selectedEmploymentType,
+                    items: const [
+                      DropdownMenuItem(value: 'organik', child: Text('Karyawan Organik')),
+                      DropdownMenuItem(value: 'freelance', child: Text('Freelance/Kontrak')),
+                    ],
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        _selectedEmploymentType = newValue!;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Status karyawan wajib dipilih';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16.0),
+                  // E-mail (Dipindahkan ke bawah agar lebih logis)
+                  // ... (Kode E-mail, Password, dan Konfirmasi Password tetap sama)
 
                   // E-mail
                   TextFormField(

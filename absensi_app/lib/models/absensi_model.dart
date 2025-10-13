@@ -1,5 +1,3 @@
-// lib/models/absensi_model.dart
-
 class Absensi {
   final int id;
   final int userId;
@@ -13,17 +11,22 @@ class Absensi {
   final String? tipe;
   final String? createdAt;
   final String? updatedAt;
-  
+
   // Kolom baru dari backend
   final String? fileBukti;
   final String? statusApproval;
   final String? catatanAdmin;
 
+  // Kolom detail lembur (wajib untuk fitur lembur)
+  final String? lemburStart;
+  final String? lemburEnd;
+  final bool? lemburRest;
+  final String? lemburKeterangan;
+
   // URL lengkap untuk foto (disediakan oleh API Laravel)
   final String? fotoMasukUrl;
   final String? fotoPulangUrl;
   final String? fileBuktiUrl;
-
 
   Absensi({
     required this.id,
@@ -41,6 +44,10 @@ class Absensi {
     this.fileBukti,
     this.statusApproval,
     this.catatanAdmin,
+    this.lemburStart,
+    this.lemburEnd,
+    this.lemburRest,
+    this.lemburKeterangan,
     this.fotoMasukUrl,
     this.fotoPulangUrl,
     this.fileBuktiUrl,
@@ -60,13 +67,23 @@ class Absensi {
       tipe: json['tipe'] as String?,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
-      
-      // Parsing kolom baru
+
+      // Kolom baru
       fileBukti: json['file_bukti'] as String?,
       statusApproval: json['status_approval'] as String?,
       catatanAdmin: json['catatan_admin'] as String?,
 
-      // Parsing URL foto dari API Laravel
+      // Kolom detail lembur
+      lemburStart: json['lembur_start'] as String?,
+      lemburEnd: json['lembur_end'] as String?,
+      lemburRest: json['lembur_rest'] is bool
+          ? json['lembur_rest'] as bool
+          : (json['lembur_rest'] == null
+              ? null
+              : json['lembur_rest'].toString() == '1' ? true : false),
+      lemburKeterangan: json['lembur_keterangan'] as String?,
+
+      // URL foto dari API Laravel
       fotoMasukUrl: json['foto_masuk_url'] as String?,
       fotoPulangUrl: json['foto_pulang_url'] as String?,
       fileBuktiUrl: json['file_bukti_url'] as String?,

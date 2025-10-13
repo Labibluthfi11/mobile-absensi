@@ -1,11 +1,11 @@
-// lib/services/api_service.dart
-
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/api_constants.dart';
 import '../models/user_model.dart';
 import '../models/absensi_model.dart';
+import 'package:mime/mime.dart';
+import 'package:http_parser/http_parser.dart';
 
 class ApiService {
   late Dio _dio;
@@ -19,7 +19,6 @@ class ApiService {
         receiveTimeout: const Duration(seconds: 10),
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
         },
       ),
     );
@@ -43,14 +42,15 @@ class ApiService {
     ));
   }
 
-  // --- Auth Methods ---
+  // AUTH
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String password,
     required String passwordConfirmation,
-    required String idKaryawan, // <--- DITAMBAHKAN
-    required String departemen, // <--- DITAMBAHKAN
+    required String idKaryawan,
+    required String departemen,
+    required String employmentType,
   }) async {
     try {
       final response = await _dio.post(
@@ -60,17 +60,18 @@ class ApiService {
           'email': email,
           'password': password,
           'password_confirmation': passwordConfirmation,
-          'id_karyawan': idKaryawan, // <--- DITAMBAHKAN
-          'departemen': departemen, // <--- DITAMBAHKAN
+          'id_karyawan': idKaryawan,
+          'departemen': departemen,
+          'employment_type': employmentType,
         },
       );
       if (response.statusCode == 201) {
         await _saveToken(response.data['access_token']);
-        final userData = response.data['user']; 
-        if (userData != null) {
-          return {'success': true, 'user': User.fromJson(userData), 'access_token': response.data['access_token']}; 
+        final dynamic userData = response.data['user'];
+        if (userData != null && userData is Map<String, dynamic>) {
+          return {'success': true, 'user': User.fromJson(userData), 'access_token': response.data['access_token']};
         }
-        return {'success': true, 'message': 'Registration successful, but user data not found.'};
+        return {'success': true, 'message': 'Registration successful, but user data not found or invalid.'};
       } else {
         return {'success': false, 'message': response.data['message'] ?? 'Registration failed.'};
       }
@@ -95,11 +96,11 @@ class ApiService {
       );
       if (response.statusCode == 200) {
         await _saveToken(response.data['access_token']);
-        final userData = response.data['user']; 
-        if (userData != null) {
-          return {'success': true, 'user': User.fromJson(userData), 'access_token': response.data['access_token']}; 
+        final dynamic userData = response.data['user'];
+        if (userData != null && userData is Map<String, dynamic>) {
+          return {'success': true, 'user': User.fromJson(userData), 'access_token': response.data['access_token']};
         }
-        return {'success': true, 'message': 'Login successful, but user data not found.'};
+        return {'success': true, 'message': 'Login successful, but user data not found or invalid.'};
       } else {
         return {'success': false, 'message': response.data['message'] ?? 'Login failed.'};
       }
@@ -113,11 +114,12 @@ class ApiService {
   Future<void> logout() async {
     try {
       await _dio.post('/logout');
-      await _deleteToken();
-    } on DioException catch (e) {
-      _handleDioError(e, 'Logout failed');
+    } on DioException {
+      // Ignore error
     } catch (e) {
       print('Logout error: $e');
+    } finally {
+      await _deleteToken();
     }
   }
 
@@ -129,8 +131,9 @@ class ApiService {
       }
       final response = await _dio.get('/user');
       if (response.statusCode == 200 && response.data != null) {
-        if (response.data is Map<String, dynamic>) {
-          return User.fromJson(response.data);
+        final dynamic userData = response.data['data'] ?? response.data;
+        if (userData is Map<String, dynamic>) {
+          return User.fromJson(userData);
         } else {
           print('Error: response.data is not a Map<String, dynamic> in getAuthenticatedUser. Type: ${response.data.runtimeType}, Data: ${response.data}');
           return null;
@@ -149,8 +152,63 @@ class ApiService {
     }
   }
 
-  // --- Absensi Methods ---
+  // PROFILE
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    required String email,
+    required String idKaryawan,
+    required String departemen,
+    required String employmentType,
+    File? profilePhoto,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'name': name,
+        'email': email,
+        'id_karyawan': idKaryawan,
+        'departemen': departemen,
+        'employment_type': employmentType,
+        '_method': 'PUT',
+      });
 
+      if (profilePhoto != null) {
+        String fileName = profilePhoto.path.split('/').last;
+        String? mimeType = lookupMimeType(profilePhoto.path);
+
+        formData.files.add(MapEntry(
+          'profile_photo',
+          await MultipartFile.fromFile(
+            profilePhoto.path,
+            filename: fileName,
+            contentType: mimeType != null ? MediaType.parse(mimeType) : null,
+          ),
+        ));
+      }
+
+      final response = await _dio.post(
+        '/user/profile',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final dynamic userData = response.data['user'] ?? response.data['data'];
+        if (userData != null && userData is Map<String, dynamic>) {
+          return {'success': true, 'message': response.data['message'], 'user': User.fromJson(userData)};
+        }
+        return {'success': true, 'message': response.data['message'] ?? 'Profile updated successfully, but user data not returned.'};
+      }
+      return {'success': false, 'message': response.data['message'] ?? 'Failed to update profile.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal mengupdate profil');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // ABSENSI
   Future<Map<String, dynamic>> absenMasuk({
     required File foto,
     required double lat,
@@ -178,11 +236,14 @@ class ApiService {
     }
   }
 
+  // PERUBAHAN UTAMA DI SINI
   Future<Map<String, dynamic>> absenPulang({
     required File foto,
     required double lat,
     required double lng,
     String? tipe,
+    // Menambahkan parameter keterangan untuk lembur
+    String? keterangan, 
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -191,6 +252,8 @@ class ApiService {
         'lat': lat,
         'lng': lng,
         if (tipe != null) 'tipe': tipe,
+        // Menambahkan keterangan ke FormData jika tidak null
+        if (keterangan != null) 'keterangan': keterangan,
       });
 
       final response = await _dio.post('/absensi/pulang', data: formData);
@@ -200,6 +263,42 @@ class ApiService {
       return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
     } on DioException catch (e) {
       return _handleDioError(e, 'Absen pulang gagal');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // Method absenLembur ini sekarang berpotensi duplikat
+  // Jika logic lembur sepenuhnya digabung ke absenPulang, method ini bisa dihapus.
+  // Tapi untuk amannya, saya biarkan tidak berubah untuk saat ini.
+  Future<Map<String, dynamic>> absenLembur({
+    required File foto,
+    required double lat,
+    required double lng,
+    required String jamMulai,
+    required String jamSelesai,
+    required bool istirahat,
+    required String keterangan,
+  }) async {
+    try {
+      String fileName = foto.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        'foto': await MultipartFile.fromFile(foto.path, filename: fileName),
+        'lat': lat,
+        'lng': lng,
+        'jam_mulai': jamMulai,
+        'jam_selesai': jamSelesai,
+        'istirahat': istirahat ? '1' : '0',
+        'keterangan': keterangan,
+      });
+
+      final response = await _dio.post('/absensi/lembur', data: formData);
+      if (response.data != null && response.data['data'] != null) {
+        return {'success': true, 'message': response.data['message'], 'data': Absensi.fromJson(response.data['data'])};
+      }
+      return {'success': false, 'message': 'Data absensi lembur tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Absen lembur gagal');
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
@@ -235,10 +334,7 @@ class ApiService {
         'tipe': 'sakit',
       });
 
-      final response = await _dio.post(
-        '/absensi/sakit',
-        data: formData,
-      );
+      final response = await _dio.post('/absensi/sakit', data: formData);
 
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin sakit berhasil.'};
@@ -258,17 +354,12 @@ class ApiService {
     try {
       String fileName = fileBukti.path.split('/').last;
       FormData formData = FormData.fromMap({
-        // Pastikan key 'file_bukti' sesuai dengan yang diharapkan backend kamu
         'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
         'catatan': catatan,
-        // Pastikan key 'tipe' dan nilainya sesuai dengan yang diharapkan backend kamu
         'tipe': 'izin',
       });
 
-      final response = await _dio.post(
-        '/absensi/izin', // Ganti dengan endpoint yang sesuai
-        data: formData,
-      );
+      final response = await _dio.post('/absensi/izin', data: formData);
 
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin berhasil.'};
@@ -281,7 +372,7 @@ class ApiService {
     }
   }
 
-  // --- Token Management ---
+  // TOKEN & ERROR HANDLING
   Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_authTokenKey, token);
@@ -297,7 +388,6 @@ class ApiService {
     return prefs.getString(_authTokenKey);
   }
 
-  // --- Error Handling ---
   Map<String, dynamic> _handleDioError(DioException e, String defaultMessage) {
     String message = defaultMessage;
     if (e.response != null) {
@@ -306,9 +396,8 @@ class ApiService {
           message = e.response!.data['message'];
         } else if (e.response!.data.containsKey('errors') && e.response!.data['errors'] != null) {
           Map<String, dynamic> errors = e.response!.data['errors'];
-          // Periksa apakah errors.values.first tidak null sebelum mengakses indeks 0
           if (errors.values.isNotEmpty && errors.values.first.isNotEmpty) {
-            message = errors.values.first[0];
+            message = errors.values.first[0].toString();
           } else {
             message = 'Validation error.';
           }

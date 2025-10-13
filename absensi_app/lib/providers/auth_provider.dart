@@ -1,8 +1,11 @@
+// lib/providers/auth_provider.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
-import '../api/api.service.dart';
-import '../models/user_model.dart';
+// ✅ Pastikan path ini benar! Sesuaikan jika letak ApiService berbeda
+import '../api/api.service.dart'; 
+import '../models/user_model.dart'; 
 import 'dart:convert';
 
 class AuthProvider extends ChangeNotifier {
@@ -25,6 +28,15 @@ class AuthProvider extends ChangeNotifier {
     _loadTokenAndUser();
   }
 
+  // Digunakan untuk menyimpan user baru atau user yang terupdate (misal setelah edit profil)
+  Future<void> setUser(User newUser) async {
+    _user = newUser;
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    // ✅ KRITIS: Simpan objek user sebagai JSON string
+    await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
+    notifyListeners();
+  }
+
   Future<void> _loadTokenAndUser() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_authTokenKey);
@@ -33,17 +45,22 @@ class AuthProvider extends ChangeNotifier {
     if (_token != null && userDataJson != null) {
       try {
         final decodedData = jsonDecode(userDataJson);
-        // Pastikan decodedData adalah Map<String, dynamic> sebelum mem-parsing
         if (decodedData is Map<String, dynamic>) {
+          // ✅ Gunakan User.fromJson untuk memuat data dari SharedPreferences
           _user = User.fromJson(decodedData);
-          notifyListeners();
+          if (_user != null) {
+              notifyListeners();
+          } else {
+            print('Error: Failed to parse User from JSON data.');
+            await logout(); 
+          }
         } else {
           print('Error: User data from SharedPreferences is not a Map<String, dynamic>. Type: ${decodedData.runtimeType}, Data: $decodedData');
-          await logout(); // Hapus data yang tidak valid
+          await logout(); 
         }
       } catch (e) {
         print('Error decoding user data from SharedPreferences: $e');
-        await logout(); // Hapus data yang tidak valid
+        await logout(); 
       }
     } else {
       _user = null;
@@ -64,7 +81,8 @@ class AuthProvider extends ChangeNotifier {
       );
 
       final String? accessToken = result['access_token'];
-      final User? userObject = result['user'];
+      // ✅ PERBAIKAN KRITIS: Casting langsung ke User? karena ApiService sudah melakukan User.fromJson()
+      final User? userObject = result['user'] as User?; 
 
       if (accessToken != null && userObject != null) {
         _token = accessToken;
@@ -72,7 +90,8 @@ class AuthProvider extends ChangeNotifier {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_authTokenKey, _token!);
-        await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
+        // ✅ Simpan data user yang sudah di-parse
+        await prefs.setString(_userDataKey, jsonEncode(_user!.toJson())); 
 
         _isLoading = false;
         notifyListeners();
@@ -80,18 +99,18 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = result['message'] ?? 'Login berhasil, tetapi data user atau token tidak ditemukan.';
         _isLoading = false;
         notifyListeners();
-        throw Exception(_errorMessage);
+        throw Exception(_errorMessage); 
       }
     } on DioException catch (e) {
       _isLoading = false;
       _errorMessage = _handleDioError(e);
       notifyListeners();
-      rethrow;
+      throw Exception(_errorMessage); 
     } catch (e) {
       _isLoading = false;
       _errorMessage = 'An unexpected error occurred: ${e.toString()}';
       notifyListeners();
-      rethrow;
+      throw Exception(_errorMessage); 
     }
   }
 
@@ -100,8 +119,9 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String passwordConfirmation,
-    required String idKaryawan, // <--- DITAMBAHKAN
-    required String departemen, // <--- DITAMBAHKAN
+    required String idKaryawan, 
+    required String departemen, 
+    required String employmentType, // ✅ PARAMETER BARU DITAMBAHKAN
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -113,12 +133,15 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
         passwordConfirmation: passwordConfirmation,
-        idKaryawan: idKaryawan, // <--- DITAMBAHKAN
-        departemen: departemen, // <--- DITAMBAHKAN
+        idKaryawan: idKaryawan, 
+        departemen: departemen, 
+        employmentType: employmentType, // ✅ PARAMETER BARU DITERUSKAN
       );
 
       final String? accessToken = result['access_token'];
-      final User? userObject = result['user'];
+      // ✅ PERBAIKAN KRITIS: Casting langsung ke User?
+      final User? userObject = result['user'] as User?;
+
 
       if (accessToken != null && userObject != null) {
         _token = accessToken;
@@ -126,7 +149,8 @@ class AuthProvider extends ChangeNotifier {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_authTokenKey, _token!);
-        await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
+        // ✅ Simpan data user yang sudah di-parse
+        await prefs.setString(_userDataKey, jsonEncode(_user!.toJson())); 
 
         _isLoading = false;
         notifyListeners();
@@ -140,12 +164,12 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       _errorMessage = _handleDioError(e);
       notifyListeners();
-      rethrow;
+      throw Exception(_errorMessage);
     } catch (e) {
       _isLoading = false;
       _errorMessage = 'An unexpected error occurred: ${e.toString()}';
       notifyListeners();
-      rethrow;
+      throw Exception(_errorMessage);
     }
   }
 
@@ -155,9 +179,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _apiService.logout();
+      await _apiService.logout(); 
     } on DioException catch (e) {
-      print('Logout API error: ${e.message}');
+      // Jika logout API gagal, kita tetap log out di sisi client
+      print('Logout API error: ${e.message}'); 
     } finally {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.remove(_authTokenKey);
@@ -168,7 +193,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
+  
+  // Fungsi helper untuk handle DioError dari ApiService
   String _handleDioError(DioException e) {
     String message = 'An unknown error occurred.';
     if (e.response != null) {
@@ -177,7 +203,12 @@ class AuthProvider extends ChangeNotifier {
           message = e.response!.data['message'];
         } else if (e.response!.data.containsKey('errors') && e.response!.data['errors'] != null) {
           Map<String, dynamic> errors = e.response!.data['errors'];
-          message = errors.values.first[0] ?? 'Validation error.';
+          // Ambil pesan error pertama dari list error
+          if (errors.values.isNotEmpty && errors.values.first is List) {
+             message = errors.values.first[0];
+          } else {
+             message = 'Validation error.';
+          }
         } else {
           message = 'Server error: ${e.response!.statusCode}';
         }

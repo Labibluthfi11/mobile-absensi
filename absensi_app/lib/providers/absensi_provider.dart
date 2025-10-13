@@ -1,5 +1,3 @@
-// File: lib/providers/absensi_provider.dart
-
 import 'package:flutter/material.dart';
 import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/models/absensi_model.dart';
@@ -37,11 +35,9 @@ class AbsensiProvider with ChangeNotifier {
   int get totalTanpaKet => _totalTanpaKet;
 
   AbsensiProvider() {
-    // Auto fetch pas provider pertama kali dipanggil
     refreshAbsensi();
   }
 
-  // ======== STATE HANDLER ========
   void setIsLoading(bool value) {
     _isLoading = value;
     notifyListeners();
@@ -52,9 +48,7 @@ class AbsensiProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ======== FETCH DATA ========
   Future<void> refreshAbsensi() async {
-    // Reset dulu supaya list lama ga kebawa
     _myAbsensiList = [];
     _currentDayAbsensi = null;
     _errorMessage = null;
@@ -70,8 +64,6 @@ class AbsensiProvider with ChangeNotifier {
 
     try {
       final absensiList = await _apiService.getAbsensiMe();
-
-      // Pastikan data tidak null
       _myAbsensiList = absensiList ?? [];
       await fetchCurrentDayAbsensi();
       _calculateStatistics();
@@ -131,7 +123,6 @@ class AbsensiProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ======== STATISTIK ========
   void _calculateStatistics() {
     _totalHadir = 0;
     _totalIzin = 0;
@@ -153,7 +144,6 @@ class AbsensiProvider with ChangeNotifier {
     }
   }
 
-  // ======== ABSENSI ACTION ========
   Future<Map<String, dynamic>> absenMasuk({
     required File foto,
     required double lat,
@@ -190,6 +180,8 @@ class AbsensiProvider with ChangeNotifier {
     required double lat,
     required double lng,
     String? tipe,
+    // PERUBAHAN UTAMA: Menambahkan keterangan untuk lembur
+    String? keterangan, 
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
@@ -200,6 +192,8 @@ class AbsensiProvider with ChangeNotifier {
         lat: lat,
         lng: lng,
         tipe: tipe,
+        // Kirim keterangan ke ApiService
+        keterangan: keterangan, 
       );
       if (result['success'] == true) {
         await fetchMyAbsensi();
@@ -208,6 +202,43 @@ class AbsensiProvider with ChangeNotifier {
       }
     } catch (e) {
       _errorMessage = 'Error absen pulang: ${e.toString()}';
+      result = {'success': false, 'message': _errorMessage};
+    } finally {
+      setIsLoading(false);
+      notifyListeners();
+    }
+    return result;
+  }
+
+  Future<Map<String, dynamic>> absenLembur({
+    required File foto,
+    required double lat,
+    required double lng,
+    required String jamMulai,
+    required String jamSelesai,
+    required bool istirahat,
+    required String keterangan,
+  }) async {
+    setIsLoading(true);
+    Map<String, dynamic> result;
+
+    try {
+      result = await _apiService.absenLembur(
+        foto: foto,
+        lat: lat,
+        lng: lng,
+        jamMulai: jamMulai,
+        jamSelesai: jamSelesai,
+        istirahat: istirahat,
+        keterangan: keterangan,
+      );
+      if (result['success'] == true) {
+        await fetchMyAbsensi();
+      } else {
+        _errorMessage = result['message'] ?? 'Absen lembur gagal.';
+      }
+    } catch (e) {
+      _errorMessage = 'Error absen lembur: ${e.toString()}';
       result = {'success': false, 'message': _errorMessage};
     } finally {
       setIsLoading(false);
@@ -270,7 +301,6 @@ class AbsensiProvider with ChangeNotifier {
     return result;
   }
 
-  // ======== RESET ========
   void resetState() {
     _myAbsensiList = [];
     _currentDayAbsensi = null;

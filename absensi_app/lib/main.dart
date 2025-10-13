@@ -9,7 +9,6 @@ import 'package:absensi_app/screens/auth/login.screen.dart';
 import 'package:absensi_app/screens/auth/register.screen.dart';
 import 'package:absensi_app/screens/home/home.screen.dart';
 import 'package:absensi_app/screens/splash/splash_screen.dart';
-import 'package:absensi_app/screens/home/absensi_camera_screen.dart';
 // Tidak perlu mengimpor AbsensiSakitFormScreen di sini karena tidak digunakan di MaterialApp.routes
 
 // Variabel global untuk kamera (diinisialisasi sebelum runApp)
@@ -62,8 +61,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(),
-        // Rute ini berfungsi untuk navigasi ke layar kamera.
-        '/camera': (context) => const AbsensiCameraScreen(),
+        // Rute ini berfungsi untuk navigasi ke layar kame
         // Rute untuk '/sakit_form' dihapus karena sekarang navigasinya
         // dilakukan secara langsung dari AbsensiCameraScreen dengan membawa data.
       },
