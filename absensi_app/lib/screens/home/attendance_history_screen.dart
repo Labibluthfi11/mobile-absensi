@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
+import 'package:absensi_app/models/absensi_model.dart';
 import 'package:intl/intl.dart';
 
-// Diubah menjadi StatefulWidget agar bisa menggunakan initState() untuk memuat data.
+const Color kPrimaryColor = Color(0xFF152C5C);
+const Color kAccentColor = Color(0xFF3B82F6);
+const Color kBackgroundColor = Color(0xFFF7F9FB);
+const Color kCardColor = Colors.white;
+
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({super.key});
 
@@ -12,196 +17,576 @@ class AttendanceHistoryScreen extends StatefulWidget {
 }
 
 class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
-  
-  // 1. Memuat data saat widget dibuat
   @override
   void initState() {
     super.initState();
-    // Memastikan pemanggilan API dilakukan setelah widget terpasang.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // listen: false karena kita berada di initState
-      final AbsensiProvider absensiProvider = 
+      final AbsensiProvider absensiProvider =
           Provider.of<AbsensiProvider>(context, listen: false);
-      
-      // Memastikan data selalu di-fetch setiap kali layar diinisialisasi (setelah restart)
-      absensiProvider.fetchMyAbsensi(); 
+      absensiProvider.fetchMyAbsensi();
     });
+  }
+
+  // 🆕 Method untuk menghitung total hadir dan telat
+  Map<String, int> _calculateAttendanceStats(List<Absensi> absensiList) {
+    int totalHadir = 0;
+    int totalTelat = 0;
+
+    for (var absensi in absensiList) {
+      // Hitung yang statusnya "hadir"
+      if (absensi.status?.toLowerCase() == 'hadir') {
+        totalHadir++;
+        
+        // Jika ada flag isLate atau late_minutes > 0
+        if (absensi.isLate == true) {
+          totalTelat++;
+        }
+      }
+    }
+
+    return {
+      'hadir': totalHadir,
+      'telat': totalTelat,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     Intl.defaultLocale = 'id_ID';
     final AbsensiProvider absensiProvider = Provider.of<AbsensiProvider>(context);
+    
+    // 🆕 Hitung statistik hadir dan telat
+    final stats = _calculateAttendanceStats(absensiProvider.myAbsensiList);
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Section: Attendance Statistics
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 2,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
+    return Scaffold(
+      backgroundColor: kBackgroundColor,
+      body: RefreshIndicator(
+        onRefresh: () => absensiProvider.fetchMyAbsensi(),
+        color: kAccentColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Statistik Kehadiran',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF003366), 
-                  ),
-                ),
-                const SizedBox(height: 10),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 3.5,
-                  children: [
-                    _buildStatItem('Hadir:', absensiProvider.totalHadir.toString(), const Color(0xFF007BFF)),
-                    _buildStatItem('Tanpa Ket:', absensiProvider.totalTanpaKet.toString(), const Color(0xFFFF0000)),
-                    _buildStatItem('Izin:', absensiProvider.totalIzin.toString(), const Color(0xFF8B00FF)),
-                    _buildStatItem('Sakit:', absensiProvider.totalSakit.toString(), const Color(0xFF00BFFF)),
-                    _buildStatItem('Telat:', absensiProvider.totalTelat.toString(), const Color(0xFFFF8C00)),
-                    _buildStatItem('Lembur:', absensiProvider.totalLembur.toString(), const Color(0xFFFFD700)),
-                  ],
-                ),
+                _buildStatisticsCard(absensiProvider, stats),
+                const SizedBox(height: 30),
+                _buildHistoryHeader(absensiProvider.myAbsensiList.length),
+                const SizedBox(height: 20),
+                absensiProvider.isLoading
+                    ? _buildLoadingSkeleton()
+                    : absensiProvider.errorMessage != null
+                        ? _buildErrorState(absensiProvider)
+                        : absensiProvider.myAbsensiList.isEmpty
+                            ? _buildEmptyState()
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: absensiProvider.myAbsensiList.length,
+                                itemBuilder: (context, index) {
+                                  final Absensi absensi =
+                                      absensiProvider.myAbsensiList[index];
+                                  return _buildHistoryCard(absensi, absensiProvider);
+                                },
+                              ),
               ],
             ),
           ),
-          
-          const SizedBox(height: 20),
-          
-          // Section: History Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF007BFF),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Riwayat Absensi',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${absensiProvider.myAbsensiList.length} Records',
-                  style: const TextStyle(
-                    color: Colors.black54,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatisticsCard(AbsensiProvider absensiProvider, Map<String, int> stats) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 15,
+          runSpacing: 15,
+          children: [
+            // 🆕 Card Hadir
+            _buildStatItem(
+              'Hadir', 
+              stats['hadir'].toString(),
+              const Color(0xFF10B981), 
+              Icons.check_circle
+            ),
+            // 🆕 Card Telat
+            _buildStatItem(
+              'Telat', 
+              stats['telat'].toString(),
+              const Color(0xFFF59E0B), 
+              Icons.access_time_filled
+            ),
+            _buildStatItem(
+              'Tanpa Ket.', 
+              absensiProvider.totalTanpaKet.toString(),
+              const Color(0xFFEF4444), 
+              Icons.do_not_disturb_alt
+            ),
+            _buildStatItem(
+              'Izin', 
+              absensiProvider.totalIzin.toString(),
+              const Color(0xFF8B5CF6), 
+              Icons.event_note_outlined
+            ),
+            _buildStatItem(
+              'Sakit', 
+              absensiProvider.totalSakit.toString(),
+              const Color(0xFF3B82F6), 
+              Icons.medical_services_outlined
+            ),
+            _buildStatItem(
+              'Lembur', 
+              absensiProvider.totalLembur.toString(),
+              const Color(0xFFFCD34D), 
+              Icons.nightlight_round
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color, IconData icon) {
+    final double itemWidth = (MediaQuery.of(context).size.width - 60) / 2;
+
+    return Container(
+      width: itemWidth,
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-
-          const SizedBox(height: 20),
-
-          // Section: Attendance History List
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: absensiProvider.isLoading
-                ? _buildLoadingSkeleton() // 2. Menggunakan skeleton loading
-                : absensiProvider.errorMessage != null
-                    ? _buildErrorState(absensiProvider, context)
-                    : absensiProvider.myAbsensiList.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Anda belum memiliki riwayat absensi.',
-                              style: TextStyle(fontSize: 16, color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: absensiProvider.myAbsensiList.length,
-                            itemBuilder: (context, index) {
-                              final dynamic absensi = absensiProvider.myAbsensiList[index];
-                              return _buildHistoryCard(absensi, context); 
-                            },
-                          ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-// ----------------------------------------------------------------------------------
-// HELPER METHODS
-// ----------------------------------------------------------------------------------
+  Widget _buildHistoryHeader(int totalRecords) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Text(
+          'Riwayat Harian',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: kPrimaryColor,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: kPrimaryColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$totalRecords Records',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-  // Helper method untuk Skeleton Loading (UI Loading yang bagus)
+  Widget _buildHistoryCard(Absensi absensi, AbsensiProvider provider) {
+    final String? checkInAt = absensi.checkInAt;
+    final String? checkOutAt = absensi.checkOutAt;
+    final String? status = absensi.status;
+    final String? keterangan = absensi.keterangan;
+    final String? statusApproval = absensi.statusApproval;
+
+    final DateTime? checkInDate =
+        checkInAt != null ? DateTime.parse(checkInAt).toLocal() : null;
+
+    final String tanggal = checkInDate != null
+        ? DateFormat('EEEE, d MMMM yyyy').format(checkInDate)
+        : 'Tanggal Tidak Tersedia';
+    final String jamMasuk =
+        checkInAt != null ? DateFormat('HH:mm').format(checkInDate!) : '--:--';
+    final String jamPulang = checkOutAt != null
+        ? DateFormat('HH:mm').format(DateTime.parse(checkOutAt).toLocal())
+        : '--:--';
+
+    final Color statusColor = _getStatusColor(status);
+    final bool isLeaveRecord =
+        status?.toLowerCase() == 'sakit' || status?.toLowerCase() == 'izin';
+
+    String displayedStatusText = (status ?? 'N/A').toUpperCase();
+    Color displayedStatusColor = statusColor;
+
+    if (isLeaveRecord ||
+        (absensi.workflowStatus != null && absensi.workflowStatus!.isNotEmpty)) {
+      final String approval = statusApproval?.toLowerCase() ?? 'pending';
+      if (approval == 'pending' || approval == 'menunggu' || approval == 'waiting') {
+        displayedStatusText = 'MENUNGGU APPROVAL';
+        displayedStatusColor = Colors.orange.shade700;
+      } else if (approval == 'approved' || approval == 'disetujui') {
+        displayedStatusText = 'DISETUJUI';
+        displayedStatusColor = const Color(0xFF10B981);
+      } else if (approval == 'rejected' || approval == 'ditolak') {
+        displayedStatusText = 'DITOLAK';
+        displayedStatusColor = const Color(0xFFEF4444);
+      } else {
+        displayedStatusText = (status ?? 'N/A').toUpperCase();
+        displayedStatusColor = statusColor;
+      }
+    }
+
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Container(
+        decoration: BoxDecoration(
+          color: kCardColor,
+          borderRadius: BorderRadius.circular(15),
+          border: Border(left: BorderSide(color: displayedStatusColor, width: 6)),
+        ),
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header tanggal + status
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    tanggal,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w700, color: kPrimaryColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 0,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.38,
+                      minWidth: 60,
+                    ),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: displayedStatusColor,
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          displayedStatusText,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 25, thickness: 1, color: Color(0xFFE0E0E0)),
+            
+            // 🆕 TAMPILKAN BADGE TELAT (jika ada)
+            if (absensi.isLate == true && absensi.lateDurationText != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, 
+                        color: Color(0xFFF59E0B), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '⏰ Telat ${absensi.lateDurationText}',
+                      style: const TextStyle(
+                        color: Color(0xFFB45309),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            if (isLeaveRecord)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Keterangan:',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: kPrimaryColor)),
+                  const SizedBox(height: 4),
+                  Text(
+                    keterangan ?? 'Tidak ada keterangan spesifik.',
+                    style: const TextStyle(
+                        fontSize: 16, color: Colors.black87, fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTimeDetail(Icons.access_time_rounded, 'WAKTU PENGAJUAN',
+                      jamMasuk, displayedStatusColor.withOpacity(0.9)),
+                  const SizedBox(height: 12),
+                  if (absensi.workflowStatus != null &&
+                      absensi.workflowStatus!.isNotEmpty)
+                    _buildWorkflowWidget(absensi),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildTimeDetail(
+                          Icons.alarm_on, 'MASUK', jamMasuk, Colors.green.shade700),
+                      _buildTimeDetail(
+                          Icons.alarm_off, 'PULANG', jamPulang, Colors.red.shade700),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (absensi.workflowStatus != null &&
+                      absensi.workflowStatus!.isNotEmpty)
+                    _buildWorkflowWidget(absensi),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkflowWidget(Absensi absensi) {
+    final Map<String, dynamic>? workflow = absensi.workflowStatus;
+    if (workflow == null || workflow.isEmpty) return const SizedBox.shrink();
+
+    String prettyName(String key) {
+      final normalized = key.toLowerCase();
+      if (normalized.contains('supervisor') || normalized.contains('yuli')) return 'Supervisor';
+      if (normalized.contains('manager') || normalized.contains('nu')) return 'Manager';
+      if (normalized.contains('hrga') || normalized.contains('nadya')) return 'HRGA';
+      return normalized[0].toUpperCase() + normalized.substring(1);
+    }
+
+    final Map<String, String> latestStatus = {};
+    workflow.forEach((key, value) {
+      final role = key.split('.').first.toLowerCase();
+      final status = (value ?? '').toString().toLowerCase();
+      latestStatus[role] = status;
+    });
+
+    final order = ['supervisor', 'manager', 'hrga'];
+    final sortedEntries = order
+        .where((role) => latestStatus.containsKey(role))
+        .map((role) => MapEntry(role, latestStatus[role]!))
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Status Approval:',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+        ),
+        const SizedBox(height: 8),
+        Column(
+          children: sortedEntries.map((entry) {
+            final role = prettyName(entry.key);
+            final status = entry.value;
+
+            Color color;
+            IconData icon;
+            String statusText;
+
+            if (status.contains('approve')) {
+              color = const Color(0xFF10B981);
+              icon = Icons.check_circle;
+              statusText = 'Approved';
+            } else if (status.contains('reject')) {
+              color = const Color(0xFFEF4444);
+              icon = Icons.cancel;
+              statusText = 'Rejected';
+            } else {
+              color = Colors.amber.shade700;
+              icon = Icons.hourglass_top;
+              statusText = 'Pending';
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  Icon(icon, size: 18, color: color),
+                  const SizedBox(width: 8),
+                  Text('$role • $statusText',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeDetail(IconData icon, String label, String time, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: color.withOpacity(0.8)),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style:
+                  TextStyle(fontSize: 12, color: color.withOpacity(0.8), fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          time,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kPrimaryColor),
+        ),
+      ],
+    );
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'hadir':
+        return const Color(0xFF10B981);
+      case 'telat':
+        return const Color(0xFFF59E0B);
+      case 'izin':
+        return const Color(0xFF8B5CF6);
+      case 'sakit':
+        return const Color(0xFF3B82F6);
+      case 'tanpa keterangan':
+        return const Color(0xFFEF4444);
+      case 'lembur':
+        return const Color(0xFFFCD34D);
+      default:
+        return Colors.grey.shade600;
+    }
+  }
+
   Widget _buildLoadingSkeleton() {
     return ListView.builder(
-      itemCount: 4, // Tampilkan 4 baris placeholder saat loading
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 3,
       itemBuilder: (context, index) {
         return Card(
-          elevation: 3,
-          margin: const EdgeInsets.only(bottom: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
+          elevation: 4,
+          margin: const EdgeInsets.only(bottom: 18),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           child: Container(
-            height: 120, // Ketinggian menyesuaikan card riwayat
-            padding: const EdgeInsets.all(18.0),
+            padding: const EdgeInsets.all(20.0),
+            height: 140,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: kCardColor,
               borderRadius: BorderRadius.circular(15),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Placeholder untuk Tanggal
-                Container(
-                  width: 150,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _ShimmerItem(width: 200, height: 18),
+                    _ShimmerItem(width: 70, height: 18, borderRadius: 20),
+                  ],
                 ),
-                const Divider(height: 15, thickness: 0.5, color: Colors.transparent),
-                // Placeholder untuk Masuk
-                Container(
-                  width: double.infinity,
-                  height: 14,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                ),
-                // Placeholder untuk Pulang
-                Container(
-                  width: 200,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
+                Divider(height: 25, thickness: 1, color: Colors.transparent),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerItem(width: 60, height: 12),
+                        SizedBox(height: 5),
+                        _ShimmerItem(width: 80, height: 20),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerItem(width: 60, height: 12),
+                        SizedBox(height: 5),
+                        _ShimmerItem(width: 80, height: 20),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -211,194 +596,88 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-
-  // Helper method untuk item statistik (TIDAK DIUBAH)
-  Widget _buildStatItem(String label, String value, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Helper method untuk menampilkan Card Riwayat yang Elegan
-  Widget _buildHistoryCard(dynamic absensi, BuildContext context) {
-    final String? checkInAt = absensi.checkInAt;
-    final String? checkOutAt = absensi.checkOutAt;
-    final String? status = absensi.status;
-
-    final DateTime? checkInDate = checkInAt != null ? DateTime.parse(checkInAt).toLocal() : null;
-    
-    final String tanggal = checkInDate != null 
-        ? DateFormat('EEEE, d MMMM yyyy').format(checkInDate) 
-        : 'Tanggal Tidak Tersedia';
-        
-    final String jamMasuk = checkInDate != null 
-        ? DateFormat('HH:mm').format(checkInDate) 
-        : '-';
-    
-    final String jamPulang = checkOutAt != null 
-        ? DateFormat('HH:mm').format(DateTime.parse(checkOutAt).toLocal()) 
-        : '-';
-
-    return Card(
-      elevation: 5,
-      margin: const EdgeInsets.only(bottom: 15),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(15),
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.blue.shade50!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        padding: const EdgeInsets.all(18.0),
+  Widget _buildErrorState(AbsensiProvider absensiProvider) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 50.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Tanggal
-                Text(
-                  tanggal,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF003366), 
-                  ),
-                ),
-                // Status Tag
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(status),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    status ?? 'N/A',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
+            const Icon(Icons.error_outline, color: kAccentColor, size: 60),
+            const SizedBox(height: 15),
+            const Text(
+              'Gagal Memuat Data',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kPrimaryColor),
             ),
-            const Divider(height: 15, thickness: 0.5, color: Colors.grey),
-            
-            // Detail Waktu
-            _buildTimeDetail(Icons.login, 'Masuk', '$jamMasuk WIB', Colors.green.shade700),
-            const SizedBox(height: 8),
-            _buildTimeDetail(Icons.logout, 'Pulang', '$jamPulang WIB', Colors.red.shade700),
+            const SizedBox(height: 5),
+            Text(
+              absensiProvider.errorMessage ?? 'Silakan periksa koneksi internet Anda.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Colors.black54),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () => absensiProvider.fetchMyAbsensi(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // Helper method untuk detail waktu
-  Widget _buildTimeDetail(IconData icon, String label, String time, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 80, 
-          child: Text(
-            '$label:',
-            style: const TextStyle(fontSize: 14, color: Colors.black87),
-          ),
-        ),
-        Text(
-          time,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
-        ),
-      ],
-    );
-  }
-
-  // Helper method untuk state error
-  Widget _buildErrorState(AbsensiProvider absensiProvider, BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            color: Colors.red,
-            size: 40,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Terjadi kesalahan: ${absensiProvider.errorMessage}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.red,
+  Widget _buildEmptyState() {
+    return const Padding(
+      padding: EdgeInsets.only(top: 50.0),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.calendar_today_outlined, color: Colors.grey, size: 60),
+            SizedBox(height: 15),
+            Text(
+              'Belum Ada Riwayat Absensi',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
             ),
-          ),
-          const SizedBox(height: 10),
-          ElevatedButton.icon(
-            onPressed: () => absensiProvider.fetchMyAbsensi(),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Coba Lagi'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade600,
-              foregroundColor: Colors.white,
+            SizedBox(height: 5),
+            Text(
+              'Data akan muncul setelah Anda melakukan absensi.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
 
-  // Helper method untuk mendapatkan warna berdasarkan status
-  Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'hadir':
-        return Colors.green.shade600;
-      case 'telat':
-        return Colors.orange.shade600;
-      case 'izin':
-        return Colors.purple.shade600;
-      case 'sakit':
-        return Colors.lightBlue.shade600;
-      case 'tanpa keterangan':
-        return Colors.red.shade600;
-      case 'lembur':
-        return Colors.amber.shade800;
-      default:
-        return Colors.grey.shade600;
-    }
+class _ShimmerItem extends StatelessWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  const _ShimmerItem({
+    required this.width,
+    required this.height,
+    this.borderRadius = 5.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
   }
 }

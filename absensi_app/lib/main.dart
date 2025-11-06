@@ -3,25 +3,29 @@ import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+// === Import service & provider ===
+import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/providers/auth_provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
+
+// === Import screens utama ===
 import 'package:absensi_app/screens/auth/login.screen.dart';
 import 'package:absensi_app/screens/auth/register.screen.dart';
 import 'package:absensi_app/screens/home/home.screen.dart';
 import 'package:absensi_app/screens/splash/splash_screen.dart';
-// Tidak perlu mengimpor AbsensiSakitFormScreen di sini karena tidak digunakan di MaterialApp.routes
 
-// Variabel global untuk kamera (diinisialisasi sebelum runApp)
+// === Import halaman tambahan untuk navigasi dari notifikasi ===
+import 'package:absensi_app/pages/notifications_page.dart';
+import 'package:absensi_app/screens/home/absensi_pulang_screen.dart';
+import 'package:absensi_app/screens/home/absensi_sakit_form_screen.dart';
+
 late List<CameraDescription> cameras;
 
 void main() async {
-  // Pastikan Flutter binding sudah diinisialisasi sebelum mengakses kamera
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Inisialisasi data lokal untuk DateFormat
+
   await initializeDateFormatting('id_ID', null);
 
-  // Inisialisasi daftar kamera yang tersedia
   try {
     cameras = await availableCameras();
   } on CameraException catch (e) {
@@ -32,8 +36,19 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => AbsensiProvider()),
+        Provider<ApiService>(
+          create: (_) => ApiService(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => AuthProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => AbsensiProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -45,11 +60,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final apiService = context.read<ApiService>();
+
     return MaterialApp(
       title: 'Absensi App',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        // Tambahkan tema lainnya
         appBarTheme: const AppBarTheme(
           color: Colors.deepPurple,
         ),
@@ -57,14 +74,23 @@ class MyApp extends StatelessWidget {
       darkTheme: ThemeData.dark(),
       themeMode: ThemeMode.system,
       home: const SplashScreen(),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
-        // Rute ini berfungsi untuk navigasi ke layar kame
-        // Rute untuk '/sakit_form' dihapus karena sekarang navigasinya
-        // dilakukan secara langsung dari AbsensiCameraScreen dengan membawa data.
-      },
+
+      // 🧭 Semua route lengkap
+     routes: {
+  '/login': (context) => const LoginScreen(),
+  '/register': (context) => const RegisterScreen(),
+  '/home': (context) => const HomeScreen(),
+  '/notifications': (context) => NotificationsPage(apiService: apiService),
+
+  // === Rute dari notifikasi ===
+  '/lembur_detail': (context) => const AbsensiPulangScreen(),
+  '/sakit_detail': (context) => const SakitFormScreen(),
+  '/izin_detail': (context) => const SakitFormScreen(),
+
+  // ✅ Tambahkan ini biar gak error lagi
+  '/absensi_detail': (context) => const AbsensiPulangScreen(),
+},
+
     );
   }
 }

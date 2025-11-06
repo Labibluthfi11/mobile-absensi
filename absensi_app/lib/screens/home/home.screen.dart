@@ -2,14 +2,27 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_nav_bar/google_nav_bar.dart'; // <-- Import GNav
+import 'package:google_nav_bar/google_nav_bar.dart';
+import 'dart:async';
+
+// Import services & pages yang dibutuhkan
 import '../../providers/auth_provider.dart';
+import '../../api/api.service.dart';
+import '../../pages/notifications_page.dart';
+
+// Import screens lainnya
 import 'attendance_history_screen.dart';
 import 'profile_screen.dart';
 import 'absensi_masuk_screen.dart';
 import 'absensi_pulang_screen.dart';
 import 'absensi_sakit_form_screen.dart';
-import 'dart:async'; // Untuk jam realtime
+
+// --- Theme Colors for a Professional, Elegant Look ---
+const Color kPrimaryColor = Color(0xFF1E3A8A); // Darker, more professional Navy/Indigo
+const Color kAccentColor = Color(0xFFFBBF24); // Subtle Gold/Amber for accent
+const Color kSuccessColor = Color(0xFF065F46); // Dark Green
+const Color kWarningColor = Color(0xFFB45309); // Dark Orange/Brown
+const Color kBackgroundColor = Color(0xFFF9FAFB); // Very light grey background
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,14 +32,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // default ke Home
+  int _selectedIndex = 0;
 
-  // Daftar widget untuk tiap tab
   static final List<Widget> _widgetOptions = <Widget>[
-    const HomeContent(),              // Index 0: Home (UI Modern Card)
-    const AttendanceHistoryScreen(),  // Index 1: Riwayat
-    const SakitFormScreen(),          // Index 2: Sakit/Izin (Langsung ke form)
-    const ProfileScreen(),           // Index 3: Profil
+    const HomeContent(),
+    const AttendanceHistoryScreen(),
+    const SakitFormScreen(),
+    const ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -40,88 +52,60 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     if (!authProvider.isAuthenticated) {
-      Future.microtask(() => Navigator.of(context).pushReplacementNamed('/login'));
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      Future.microtask(
+        () => Navigator.of(context).pushReplacementNamed('/login'),
       );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Background yang lebih soft
-      appBar: AppBar(
-        title: const Text(
-          'Ansel Muda Berkarya',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.blueAccent,
-        centerTitle: true,
-      ),
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
-      ),
-      
-      // ===============================================
-      // BOTTOM NAVIGATION BAR MODERN DENGAN GNav
-      // ===============================================
+      backgroundColor: kBackgroundColor,
+      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              blurRadius: 20,
-              color: Colors.black.withOpacity(.1),
-            )
+              blurRadius: 10,
+              color: Colors.black.withOpacity(0.05),
+              offset: const Offset(0, -4),
+            ),
           ],
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
             child: GNav(
-              // Gaya Tampilan
-              gap: 8, // Jarak antara icon dan teks
+              gap: 8,
               activeColor: Colors.white,
               iconSize: 24,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              duration: const Duration(milliseconds: 400),
-              tabBackgroundColor: Colors.blueAccent, // Warna latar belakang tab yang dipilih
-              color: Colors.grey[600], // Warna icon yang tidak dipilih
-              
-              // Item Navigasi
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              duration: const Duration(milliseconds: 300),
+              tabBackgroundColor: kPrimaryColor,
+              color: Colors.grey[600],
               tabs: const [
-                GButton(
-                  icon: Icons.home,
-                  text: 'Home',
-                ),
-                GButton(
-                  icon: Icons.calendar_month,
-                  text: 'Riwayat',
-                ),
+                GButton(icon: Icons.home_rounded, text: 'Beranda'),
+                GButton(icon: Icons.history_rounded, text: 'Riwayat'),
                 GButton(
                   icon: Icons.local_hospital_rounded,
                   text: 'Sakit/Izin',
                 ),
-                GButton(
-                  icon: Icons.person,
-                  text: 'Profil',
-                ),
+                GButton(icon: Icons.person_rounded, text: 'Profil'),
               ],
               selectedIndex: _selectedIndex,
-              onTabChange: (index) {
-                _onItemTapped(index); // Memperbarui state saat tab diubah
-              },
+              onTabChange: _onItemTapped,
             ),
           ),
         ),
       ),
-      // ===============================================
     );
   }
 }
 
-// Widget untuk konten Home (UI Modern Card)
+// ----------------------------------------------------------------------
+// HOME CONTENT
+// ----------------------------------------------------------------------
+
 class HomeContent extends StatefulWidget {
   const HomeContent({super.key});
 
@@ -133,11 +117,35 @@ class _HomeContentState extends State<HomeContent> {
   late String _timeString;
   late Timer _timer;
 
+  // FIX: beri nilai default supaya tidak terjadi LateInitializationError
+  Future<int> _unreadCountFuture = Future.value(0);
+
   @override
   void initState() {
     super.initState();
-    _timeString = _formatDateTime(DateTime.now());
-    _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _getTime());
+    Future.microtask(() {
+      _loadUnreadCount();
+    });
+
+    _timeString = _formatTime(DateTime.now());
+    _timer = Timer.periodic(
+      const Duration(seconds: 1),
+      (Timer t) => _getTime(),
+    );
+  }
+
+  void _loadUnreadCount() {
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      setState(() {
+        _unreadCountFuture = apiService.fetchUnreadCount();
+      });
+    } catch (e) {
+      print('Error accessing ApiService: $e');
+      setState(() {
+        _unreadCountFuture = Future.value(0);
+      });
+    }
   }
 
   @override
@@ -148,7 +156,7 @@ class _HomeContentState extends State<HomeContent> {
 
   void _getTime() {
     final DateTime now = DateTime.now();
-    final String formattedDateTime = _formatDateTime(now);
+    final String formattedDateTime = _formatTime(now);
     if (mounted) {
       setState(() {
         _timeString = formattedDateTime;
@@ -156,240 +164,489 @@ class _HomeContentState extends State<HomeContent> {
     }
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    // Format: 13.45.29
-    return '${dateTime.hour.toString().padLeft(2, '0')}.${dateTime.minute.toString().padLeft(2, '0')}.${dateTime.second.toString().padLeft(2, '0')}';
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
   }
 
   String _formatDate(DateTime dateTime) {
-    // Format: Kamis, 21 Agustus 2025
-    const List<String> hari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-    const List<String> bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const List<String> hari = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    const List<String> bulan = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
 
     String namaHari = hari[dateTime.weekday - 1];
     String namaBulan = bulan[dateTime.month - 1];
     return '$namaHari, ${dateTime.day} $namaBulan ${dateTime.year}';
   }
 
-  void _showAbsensiOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const AttendanceOptionsCard(),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(25),
-        padding: const EdgeInsets.all(25),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
-              spreadRadius: 5,
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            const Text(
-              "Absensi Hari Ini",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF003366),
-              ),
-            ),
-            const SizedBox(height: 5),
-            // Tanggal
-            Text(
-              _formatDate(DateTime.now()),
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Jam Masuk (Contoh Statis) - Kamu bisa ganti ini dengan data dari provider
-            const Text(
-              "Jam Masuk: 08.00 WIB ",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.green,
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Realtime Clock
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.access_time, color: Colors.blueAccent, size: 30),
-                const SizedBox(width: 10),
-                Text(
-                  _timeString,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-            // Tombol "Hadir" (Absensi)
-            _buildButton(
-              context,
-              'Absensi',
-              () => _showAbsensiOptions(context),
-              backgroundColor: Colors.blueAccent,
-              icon: Icons.check_circle,
-            ),
-            
-            const SizedBox(height: 20),
-            const Text(
-              'Tekan Hadir untuk melakukan Absensi Masuk atau Pulang.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildButton(
-      BuildContext context,
-      String text,
-      VoidCallback onPressed, {
-        Color backgroundColor = Colors.blue,
-        IconData? icon,
-      }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, color: Colors.white),
-      label: Text(
-        text,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        elevation: 5,
-      ),
-    );
-  }
-}
-
-// Widget Modal Opsi Absensi (Masuk/Pulang)
-class AttendanceOptionsCard extends StatelessWidget {
-  const AttendanceOptionsCard({super.key});
-
-  // Fungsi untuk menampilkan Pop-up pilihan Lembur / Tidak Lembur
   void _showLemburOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24.0),
-          height: MediaQuery.of(context).size.height * 0.35,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Pilih Status Pulang',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF003366),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Tombol Lembur
-              _buildModalButton(
-                context,
-                'Lembur',
-                () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          const AbsensiPulangScreen(lembur: true), 
-                    ),
-                  );
-                },
-                icon: Icons.access_alarms,
-              ),
-              const SizedBox(height: 10),
-              // Tombol Tidak Lembur
-              _buildModalButton(
-                context,
-                'Tidak Lembur',
-                () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          const AbsensiPulangScreen(lembur: false),
-                    ),
-                  );
-                },
-                backgroundColor: Colors.green,
-                icon: Icons.check_circle_outline,
-              ),
-            ],
-          ),
-        );
+        return const PulangOptionsModal();
       },
     );
   }
 
+  void _navigateToNotifications(ApiService apiService) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationsPage(apiService: apiService),
+      ),
+    );
+    // Setelah kembali dari halaman notifikasi, refresh count
+    _loadUnreadCount();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final apiService = Provider.of<ApiService>(context);
+    final userName = authProvider.user?.name ?? 'Pengguna';
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- HEADER SECTION ---
+            HomeHeader(
+              userName: userName,
+              timeString: _timeString,
+              dateString: _formatDate(DateTime.now()),
+              unreadCountFuture: _unreadCountFuture,
+              onNotificationTap: () => _navigateToNotifications(apiService),
+            ),
+
+            const SizedBox(height: 24),
+
+            // --- QUICK ACTIONS ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Layanan Utama',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildServiceCard(
+                          context,
+                          'Absensi Masuk',
+                          Icons.arrow_circle_right_rounded,
+                          kSuccessColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AbsensiMasukScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildServiceCard(
+                          context,
+                          'Absensi Pulang',
+                          Icons.arrow_circle_left_rounded,
+                          kWarningColor,
+                          () => _showLemburOptions(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // --- INFO BANNER ---
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.0),
+              child: InfoBanner(),
+            ),
+
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServiceCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 36),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------------------
+// SEPARATE WIDGETS
+// ----------------------------------------------------------------------
+
+// ## HomeHeader Widget
+class HomeHeader extends StatelessWidget {
+  final String userName;
+  final String timeString;
+  final String dateString;
+  final Future<int> unreadCountFuture;
+  final VoidCallback onNotificationTap;
+
+  const HomeHeader({
+    super.key,
+    required this.userName,
+    required this.timeString,
+    required this.dateString,
+    required this.unreadCountFuture,
+    required this.onNotificationTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Greeting and Notification
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Selamat Datang, $userName',
+                    style: TextStyle(
+                      color: kPrimaryColor.withOpacity(0.8),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Portal Absensi Harian',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              // Notification Icon DENGAN BADGE & onTap
+              InkWell(
+                onTap: onNotificationTap,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: kPrimaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: kPrimaryColor,
+                          size: 26,
+                        ),
+                      ),
+                      // Badge Angka Notifikasi
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: FutureBuilder<int>(
+                          future: unreadCountFuture,
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            if (count > 0) {
+                              return Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 20,
+                                  minHeight: 20,
+                                ),
+                                child: Text(
+                                  count > 9 ? '9+' : '$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Time/Date Card - Premium style
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: kPrimaryColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: kPrimaryColor.withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      dateString,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      timeString,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                // Status Badge (Example: Check-in Time)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kAccentColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_rounded,
+                        color: kPrimaryColor,
+                        size: 18,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        '08:00 WIB',
+                        style: TextStyle(
+                          color: kPrimaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ## InfoBanner Widget
+class InfoBanner extends StatelessWidget {
+  const InfoBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: kAccentColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.campaign_rounded,
+              color: kAccentColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 15),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pengumuman Penting',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Pastikan Anda berada di lokasi kantor saat melakukan absensi masuk & pulang.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black54,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ## PulangOptionsModal Widget
+class PulangOptionsModal extends StatelessWidget {
+  const PulangOptionsModal({super.key});
+
   Widget _buildModalButton(
-      BuildContext context,
-      String text,
-      VoidCallback onPressed, {
-        Color backgroundColor = Colors.blue,
-        IconData? icon,
-      }) {
+    BuildContext context,
+    String text,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, color: Colors.white),
+      icon: Icon(icon, size: 22),
       label: Text(
         text,
-        style: const TextStyle(fontSize: 18),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor,
+        backgroundColor: color,
         foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        minimumSize: const Size(double.infinity, 56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 6,
+        shadowColor: color.withOpacity(0.4),
       ),
     );
   }
@@ -398,64 +655,88 @@ class AttendanceOptionsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(24.0),
-      height: MediaQuery.of(context).size.height * 0.45,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Pilih Jenis Absensi',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF003366),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          // Absensi Kehadiran (Masuk)
-          _buildModalButton(
-            context,
-            'Absensi Masuk',
-            () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AbsensiMasukScreen(),
+            const SizedBox(height: 24),
+            const Text(
+              'Opsi Absensi Pulang',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: kPrimaryColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pilih status kepulangan Anda hari ini.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            _buildModalButton(
+              context,
+              'Lembur (Overtime)',
+              Icons.schedule_rounded,
+              kWarningColor,
+              () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AbsensiPulangScreen(lembur: true),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildModalButton(
+              context,
+              'Selesai Kerja (Normal)',
+              Icons.check_circle_outline_rounded,
+              kSuccessColor,
+              () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AbsensiPulangScreen(lembur: false),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: Text(
+                'Batalkan',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500],
                 ),
-              );
-            },
-            icon: Icons.login,
-          ),
-          const SizedBox(height: 10),
-          // Absensi Pulang
-          _buildModalButton(
-            context,
-            'Absensi Pulang',
-            () {
-              Navigator.pop(context); // Tutup modal Masuk/Pulang
-              _showLemburOptions(context); // Buka modal lembur
-            },
-            backgroundColor: Colors.orange, // Ganti warna agar beda dengan Masuk
-            icon: Icons.logout,
-          ),
-          const SizedBox(height: 20),
-          // Tombol Batal
-          _buildModalButton(
-            context,
-            'Batal',
-            () => Navigator.pop(context),
-            backgroundColor: Colors.red,
-            icon: Icons.cancel,
-          ),
-          const SizedBox(height: 5),
-        ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

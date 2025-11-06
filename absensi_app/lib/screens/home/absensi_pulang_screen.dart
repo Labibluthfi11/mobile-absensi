@@ -1,24 +1,34 @@
+// File: lib/screens/home/absensi_pulang_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'dart:io'; 
 import 'dart:async'; 
-import '../../providers/absensi_provider.dart';
+import '../../providers/absensi_provider.dart'; // Pastikan path ini benar
 import 'package:intl/intl.dart';
 
+// --- Definisi Warna Korporat Premium ---
+const Color kPrimaryColor = Color(0xFF152C5C); // Deep Corporate Blue
+const Color kSecondaryColor = Color(0xFF3B82F6); // Bright Accent Blue (Untuk Aksi Utama)
+const Color kSuccessColor = Color(0xFF10B981); // Emerald Green (Untuk Status Sukses)
+const Color kErrorColor = Color(0xFFEF4444); // Red (Untuk Error)
+const Color kLemburColor = Color(0xFFF97316); // Orange Terang (Untuk Mode Lembur)
+const Color kBackgroundColor = Color(0xFFF0F4F8); // Light Ash Background
+
 // ======================================================================
-// WIDGET BARU: BouncingDotsLoader (Tetap digunakan)
+// WIDGET: BouncingDotsLoader (Diperbarui dengan kPrimaryColor)
 // ======================================================================
 class BouncingDotsLoader extends StatefulWidget {
-  const BouncingDotsLoader({super.key});
+  final Color dotColor;
+  const BouncingDotsLoader({super.key, this.dotColor = Colors.white});
 
   @override
   State<BouncingDotsLoader> createState() => _BouncingDotsLoaderState();
 }
 
-class _BouncingDotsLoaderState extends State<BouncingDotsLoader>
-    with SingleTickerProviderStateMixin {
+class _BouncingDotsLoaderState extends State<BouncingDotsLoader> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation1;
   late Animation<double> _animation2;
@@ -67,8 +77,8 @@ class _BouncingDotsLoaderState extends State<BouncingDotsLoader>
         width: 12.0,
         height: 12.0,
         margin: const EdgeInsets.symmetric(horizontal: 4.0),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: widget.dotColor, 
           shape: BoxShape.circle,
         ),
       ),
@@ -89,7 +99,7 @@ class _BouncingDotsLoaderState extends State<BouncingDotsLoader>
 }
 
 // ======================================================================
-// MAIN SCREEN: AbsensiPulangScreen (Diperbarui)
+// MAIN SCREEN: AbsensiPulangScreen
 // ======================================================================
 
 class AbsensiPulangScreen extends StatefulWidget {
@@ -104,11 +114,16 @@ class AbsensiPulangScreen extends StatefulWidget {
 class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   final ImagePicker _picker = ImagePicker();
   
-  // State Baru: Mengontrol alur
+  // State Utama
   File? _capturedImageFile;
   bool _isPhotoTaken = false; 
   Position? _currentPosition;
-  final TextEditingController _keteranganController = TextEditingController(); // Controller untuk keterangan
+  
+  // --- KONTROLER LEMBUR ---
+  final TextEditingController _keteranganController = TextEditingController(); 
+  final TextEditingController _jamMulaiController = TextEditingController(); 
+  final TextEditingController _jamSelesaiController = TextEditingController(); 
+  bool _istirahatChecked = false; 
 
   // State untuk Realtime Clock
   late String _timeString;
@@ -124,7 +139,6 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   }
 
   // Getter untuk menentukan tipe absensi untuk API/Provider
-  // Nilai null akan digunakan untuk Pulang Normal
   String? get _tipeAbsensiAPI {
     return widget.lembur == true ? 'lembur' : null;
   }
@@ -143,6 +157,8 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   void dispose() {
     _timer.cancel();
     _keteranganController.dispose();
+    _jamMulaiController.dispose(); 
+    _jamSelesaiController.dispose(); 
     super.dispose();
   }
   
@@ -153,24 +169,28 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       });
     }
   }
-
+  
   Future<void> _checkLocation() async {
-      // Pastikan lokasi diambil dan disimpan di _currentPosition
-      final Position? position = await _getCurrentLocation();
-      
-      if (mounted) {
-        if (position != null) {
-          setState(() {
-            _currentPosition = position;
-            _locationStatus = 'Lokasi Terdeteksi';
-          });
-        } else {
-          setState(() {
-            _currentPosition = null;
-            _locationStatus = 'Gagal Mendeteksi Lokasi';
-          });
-        }
+    setState(() {
+      _locationStatus = 'Memuat lokasi...';
+      _currentPosition = null;
+    });
+
+    final Position? position = await _getCurrentLocation();
+    
+    if (mounted) {
+      if (position != null) {
+        setState(() {
+          _currentPosition = position;
+          _locationStatus = 'Lokasi Terdeteksi'; 
+        });
+      } else {
+        setState(() {
+          _currentPosition = null;
+          _locationStatus = 'Gagal Mendeteksi Lokasi';
+        });
       }
+    }
   }
 
   Future<Position?> _getCurrentLocation() async {
@@ -210,8 +230,11 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     }
 
     try {
-      // Ambil posisi dan simpan di state
-      return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      // Tambahkan timeout untuk mencegah loading tak terbatas
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -222,14 +245,14 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     }
   }
 
-  // Method baru: Hanya mengambil foto dan update state
+  // Method: Hanya mengambil foto dan update state
   Future<void> _takePhoto() async {
     final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
 
     if (absensiProvider.isLoading) return;
 
     try {
-      absensiProvider.setIsLoading(true); // Mulai loading untuk proses foto/lokasi
+      absensiProvider.setIsLoading(true); 
       absensiProvider.setErrorMessage(null);
 
       final XFile? capturedImage = await _picker.pickImage(
@@ -242,68 +265,103 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       if (capturedImage == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pengambilan foto dibatalkan.')),
+            SnackBar(
+              content: const Text('Pengambilan foto dibatalkan.'),
+              backgroundColor: kSecondaryColor,
+              behavior: SnackBarBehavior.floating,
+            ),
           );
         }
         return;
       }
       
-      // Ambil lokasi lagi untuk memastikan posisi terbaru
+      // Ambil lokasi lagi untuk memastikan posisi terbaru sebelum submit
       await _checkLocation();
 
-      setState(() {
-        _capturedImageFile = File(capturedImage.path);
-        // Pindah ke langkah berikutnya (form isian jika lembur)
-        _isPhotoTaken = true; 
-      });
+      if (mounted) {
+        setState(() {
+          _capturedImageFile = File(capturedImage.path);
+          _isPhotoTaken = true; 
+        });
+      }
 
     } catch (e) {
-      absensiProvider.setErrorMessage('Gagal mengambil foto atau lokasi: ${e.toString()}');
+      absensiProvider.setErrorMessage('Gagal mengambil foto: ${e.toString()}');
     } finally {
       absensiProvider.setIsLoading(false);
     }
   }
+
+  // Fungsi untuk 'Ulangi Foto'
+  void _retakePicture() {
+    setState(() {
+      _capturedImageFile = null;
+      _isPhotoTaken = false;
+    });
+    // Panggil fungsi utama lagi untuk langsung membuka kamera
+    _takePhoto();
+  }
   
-  // Method baru: Mengirim data absen (dipanggil setelah foto dan form diisi)
+  // Method: Mengirim data absen
   Future<void> _submitAbsen() async {
     final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
 
     if (absensiProvider.isLoading) return;
     
+    // 1. Validasi Pra-Submit
     if (_capturedImageFile == null || _currentPosition == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Foto dan lokasi wajib didapatkan sebelum submit.')),
+        const SnackBar(content: Text('Foto dan lokasi wajib didapatkan sebelum submit.')),
       );
       return;
     }
 
-    // Validasi keterangan jika mode lembur
-    if (widget.lembur == true && _keteranganController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Keterangan lembur wajib diisi.')),
-      );
-      return;
+    // Validasi tambahan jika mode lembur
+    if (widget.lembur == true) {
+      final isLemburFormValid = _keteranganController.text.trim().isNotEmpty &&
+                                _jamMulaiController.text.trim().isNotEmpty &&
+                                _jamSelesaiController.text.trim().isNotEmpty;
+                                
+      if (!isLemburFormValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Jam Mulai, Jam Selesai, dan Keterangan Lembur wajib diisi.')),
+        );
+        return;
+      }
     }
 
+    // 2. Submit Data
     try {
       absensiProvider.setIsLoading(true);
       absensiProvider.setErrorMessage(null);
 
-      final result = await absensiProvider.absenPulang(
-        foto: _capturedImageFile!,
-        lat: _currentPosition!.latitude,
-        lng: _currentPosition!.longitude,
-        tipe: _tipeAbsensiAPI, 
-        // Mengirimkan keterangan hanya jika mode lembur, jika tidak, mengirim null
-        keterangan: widget.lembur == true ? _keteranganController.text.trim() : null,
-      );
+      Map<String, dynamic> result;
 
+      if (widget.lembur == true) {
+        // PANGGIL ABSEN LEMBUR
+        result = await absensiProvider.absenLembur(
+          foto: _capturedImageFile!,
+          lat: _currentPosition!.latitude,
+          lng: _currentPosition!.longitude,
+          jamMulai: _jamMulaiController.text.trim(), 
+          jamSelesai: _jamSelesaiController.text.trim(),
+          istirahat: _istirahatChecked,
+          keterangan: _keteranganController.text.trim(),
+        );
+      } else {
+        // PANGGIL ABSEN PULANG NORMAL
+        result = await absensiProvider.absenPulang(
+          foto: _capturedImageFile!,
+          lat: _currentPosition!.latitude,
+          lng: _currentPosition!.longitude,
+          tipe: _tipeAbsensiAPI, 
+          keterangan: null,
+        );
+      }
+      
       if (result['success'] == true) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Absensi $_tipeAbsensiUI berhasil!')),
-          );
-          Navigator.pop(context); 
+          _showSuccessDialog();
         }
       } else {
         absensiProvider.setErrorMessage(result['message'] ?? 'Absensi Pulang Gagal.');
@@ -314,248 +372,496 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       absensiProvider.setIsLoading(false);
     }
   }
+  
+  // ✨ Modal Sukses Canggih
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle_outline, color: kSuccessColor, size: 60),
+              const SizedBox(height: 15),
+              Text(
+                'Absensi $_tipeAbsensiUI Berhasil Dicatat!',
+                style: const TextStyle(
+                  fontSize: 22, 
+                  fontWeight: FontWeight.bold, 
+                  color: kPrimaryColor
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Waktu Pulang: ${DateFormat('HH:mm:ss').format(DateTime.now())}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Tutup dialog
+                  Navigator.of(context).pop(); // Kembali ke halaman utama/sebelumnya
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  elevation: 5,
+                ),
+                child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Widget Pembantu untuk Time Picker
+  Future<void> _selectTime(TextEditingController controller) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(
+              primary: kPrimaryColor, 
+              onPrimary: Colors.white, 
+              surface: Colors.white, 
+              onSurface: Colors.black,
+            ),
+            buttonTheme: const ButtonThemeData(
+              textTheme: ButtonTextTheme.primary
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      final now = DateTime.now();
+      // Format 24 jam (HH:mm) agar mudah dikirim ke backend
+      final formatted = DateFormat('HH:mm').format(
+        DateTime(now.year, now.month, now.day, picked.hour, picked.minute),
+      );
+      setState(() {
+        controller.text = formatted; 
+      });
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
     final absensiProvider = Provider.of<AbsensiProvider>(context);
-    final bool locationDetected = _currentPosition != null;
+    final bool locationReady = _locationStatus.contains('Terdeteksi') && _currentPosition != null;
     final bool isLembur = widget.lembur == true;
-    
-    final String buttonText = isLembur ? 'Absen Pulang Lembur' : 'Absen Pulang Normal';
-    final Color buttonColor = isLembur ? Colors.orange.shade800 : Colors.red.shade600;
+    final Color headerColor = isLembur ? kLemburColor : kErrorColor; // Merah untuk Pulang Normal, Oranye untuk Lembur
 
-    // Teks Tombol Aksi Utama
-    String mainActionButtonText = 'Ambil Foto Absen';
-    if (_isPhotoTaken && isLembur) {
-        mainActionButtonText = 'Ulangi Foto';
-    } else if (_isPhotoTaken && !isLembur) {
-        mainActionButtonText = 'Ulangi Foto';
+    // Logika Validasi Tombol Submit
+    bool isLemburFormValid = true;
+    if (isLembur && _isPhotoTaken) {
+      isLemburFormValid = _keteranganController.text.trim().isNotEmpty &&
+                          _jamMulaiController.text.trim().isNotEmpty &&
+                          _jamSelesaiController.text.trim().isNotEmpty;
     }
-
+    
+    final bool canSubmit = _isPhotoTaken && locationReady && isLemburFormValid;
+    final bool isButtonDisabled = absensiProvider.isLoading || !canSubmit;
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: Text('Absensi $_tipeAbsensiUI', style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF003366),
+        title: Text('Absensi $_tipeAbsensiUI', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: kPrimaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Digital Clock Card (Premium)
+            _buildClockCard(),
+            const SizedBox(height: 30),
+
+            // 2. Foto & Lokasi Card (Fokus Utama)
+            _buildActionCard(
+              context, 
+              absensiProvider, 
+              locationReady, 
+              headerColor
+            ),
+
+            // 3. Form Lembur (Hanya jika mode lembur dan foto sudah diambil)
+            if (_isPhotoTaken && isLembur)
+              Padding(
+                padding: const EdgeInsets.only(top: 30.0),
+                child: _buildLemburFormCard(absensiProvider),
+              ),
+            
+            // 4. Tombol Submit Final
+            const SizedBox(height: 30),
+            _buildSubmitButton(absensiProvider, canSubmit, isButtonDisabled, headerColor),
+            
+            // Error Message
+            if (absensiProvider.errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  absensiProvider.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: kErrorColor, fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGET HELPER UI MEWAH ---
+  
+  Widget _buildClockCard() {
+    return Container(
+      padding: const EdgeInsets.all(25),
+      decoration: BoxDecoration(
+        color: kPrimaryColor,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: kPrimaryColor.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            _dateString,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 18,
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            _timeString,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 55, 
+              fontFamily: 'RobotoMono', 
+              fontWeight: FontWeight.w900,
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
+              letterSpacing: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCard(
+    BuildContext context, 
+    AbsensiProvider absensiProvider, 
+    bool locationReady,
+    Color headerColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Verifikasi Pulang',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kPrimaryColor),
+          ),
+          Divider(height: 25, thickness: 1, color: Color(0xFFE0E0E0)),
+          
+          // Kotak Preview Gambar
+          Container(
+            height: MediaQuery.of(context).size.width * 0.7,
+            decoration: BoxDecoration(
+              color: _isPhotoTaken ? Colors.black12 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _isPhotoTaken ? headerColor : Colors.grey.shade300,
+                width: 2,
+              ),
+            ),
+            child: _capturedImageFile != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      _capturedImageFile!,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.camera_alt_outlined, size: 50, color: Colors.grey.shade400),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Ambil foto untuk merekam waktu $_tipeAbsensiUI.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 20),
+
+          // Status Lokasi & Refresh
+          _buildStatusRow(
+            icon: locationReady ? Icons.my_location : Icons.location_off,
+            statusText: locationReady ? 'Lokasi Terdeteksi (Siap Foto)' : 'Status Lokasi: $_locationStatus',
+            color: locationReady ? kSuccessColor : kErrorColor,
+            onRefresh: absensiProvider.isLoading ? null : _checkLocation,
+            isLoading: _locationStatus == 'Memuat lokasi...',
+          ),
+          const SizedBox(height: 25),
+
+
+          // Tombol Ambil/Ulangi Foto
+          ElevatedButton.icon(
+            onPressed: absensiProvider.isLoading || !locationReady ? null : 
+                     (_isPhotoTaken ? _retakePicture : _takePhoto),
+            icon: Icon(_isPhotoTaken ? Icons.replay_circle_filled_rounded : Icons.camera_alt_rounded, size: 24),
+            label: Text(_isPhotoTaken ? 'ULANGI FOTO' : 'AMBIL FOTO KEHADIRAN'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: absensiProvider.isLoading || !locationReady ? Colors.grey : kSecondaryColor, 
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              elevation: 8,
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLemburFormCard(AbsensiProvider absensiProvider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: kLemburColor.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: kLemburColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.hourglass_bottom, color: kLemburColor, size: 24),
+              const SizedBox(width: 10),
+              Text(
+                'Detail Lembur (Wajib Diisi)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kLemburColor),
+              ),
+            ],
+          ),
+          const Divider(height: 25, thickness: 1, color: Color(0xFFFEEBCF)),
+
+          // Input Jam
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _jamMulaiController,
+                  readOnly: true, 
+                  decoration: _buildInputDecoration('Jam Mulai', kLemburColor, Icons.access_time_filled),
+                  onTap: () => _selectTime(_jamMulaiController),
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: TextFormField(
+                  controller: _jamSelesaiController,
+                  readOnly: true, 
+                  decoration: _buildInputDecoration('Jam Selesai', kLemburColor, Icons.access_time_filled),
+                  onTap: () => _selectTime(_jamSelesaiController),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+
+          // Checkbox Istirahat
+          InkWell(
+            onTap: absensiProvider.isLoading ? null : () {
+              setState(() {
+                _istirahatChecked = !_istirahatChecked;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: _istirahatChecked,
+                    onChanged: absensiProvider.isLoading ? null : (bool? value) {
+                      setState(() {
+                        _istirahatChecked = value ?? false;
+                      });
+                    },
+                    activeColor: kLemburColor,
+                  ),
+                  const Text('Ambil istirahat (Istirahat Dihitung)'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          
+          // Keterangan
+          TextFormField(
+            controller: _keteranganController,
+            maxLines: 4,
+            decoration: _buildInputDecoration('Keterangan Lembur (Tugas yang Dikerjakan)', kLemburColor),
+            enabled: !absensiProvider.isLoading,
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String label, Color color, [IconData? icon]) {
+    return InputDecoration(
+      labelText: label,
+      alignLabelWithHint: true,
+      border: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        borderSide: BorderSide(color: color.withOpacity(0.5)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        borderSide: BorderSide(color: color, width: 2),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        borderSide: BorderSide(color: color.withOpacity(0.5)),
+      ),
+      suffixIcon: icon != null ? Icon(icon, color: color) : null,
+      labelStyle: TextStyle(color: color),
+    );
+  }
+  
+  Widget _buildSubmitButton(
+    AbsensiProvider absensiProvider, 
+    bool canSubmit, 
+    bool isButtonDisabled, 
+    Color buttonColor
+  ) {
+    return ElevatedButton(
+      onPressed: isButtonDisabled ? null : _submitAbsen,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isButtonDisabled ? Colors.grey : buttonColor,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        elevation: 8,
+      ),
+      child: absensiProvider.isLoading
+          ? BouncingDotsLoader(dotColor: Colors.white)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.exit_to_app_rounded, size: 24),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    widget.lembur == true ? 'SUBMIT ABSEN LEMBUR' : 'SUBMIT ABSEN PULANG',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header Waktu dan Tanggal
-                Text(
-                  _dateString,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _timeString,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF003366),
-                  ),
-                ),
-                const Divider(height: 30, thickness: 1.5, color: Colors.blueAccent),
-                
-                // --- KONTEN FOTO (Langkah 1)
-                Text(
-                  'Langkah 1: Ambil Foto Absensi $_tipeAbsensiUI',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                
-                Container(
-                  height: MediaQuery.of(context).size.width * 0.75,
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: _capturedImageFile != null ? Colors.green : Colors.grey.shade400,
-                      width: 2,
-                    ),
-                  ),
-                  child: _capturedImageFile != null
-                      ? ClipRRect(
-                            borderRadius: BorderRadius.circular(15),
-                            child: Image.file(_capturedImageFile!, fit: BoxFit.cover),
-                          )
-                      : const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.camera_alt_outlined, size: 60, color: Colors.grey),
-                                SizedBox(height: 10),
-                                Text(
-                                  'Tekan tombol "Ambil Foto" di bawah.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                ),
-                const SizedBox(height: 15),
-
-                // Tombol Ambil Foto
-                ElevatedButton.icon(
-                  onPressed: absensiProvider.isLoading || !locationDetected ? null : _takePhoto,
-                  icon: const Icon(Icons.camera_alt),
-                  label: Text(mainActionButtonText),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
-                ),
-                const SizedBox(height: 25),
-
-
-                // --- FORM KETERANGAN (Langkah 2 - Hanya untuk Lembur)
-                if (_isPhotoTaken && isLembur)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Divider(height: 30, thickness: 1.5, color: Colors.orange),
-                    Text(
-                      'Langkah 2: Isi Keterangan Lembur',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextFormField(
-                      controller: _keteranganController,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Keterangan Lembur (Wajib Diisi)',
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-                        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange)),
-                      ),
-                      enabled: !absensiProvider.isLoading,
-                    ),
-                    const SizedBox(height: 25),
-                  ],
-                ),
-                
-                // --- LOKASI & SUBMIT (Langkah Akhir)
-                const Divider(height: 30, thickness: 1.5, color: Colors.green),
-                Text(
-                    'Langkah Terakhir: Verifikasi Lokasi dan Submit',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                    ),
-                ),
-                const SizedBox(height: 15),
-
-                Row(
-                  children: [
-                    Icon(
-                      locationDetected ? Icons.location_on : Icons.location_off,
-                      color: locationDetected ? Colors.green : Colors.red,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _locationStatus,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: locationDetected ? Colors.green : Colors.red,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.blueGrey),
-                      onPressed: absensiProvider.isLoading ? null : _checkLocation,
-                    )
-                  ],
-                ),
-                const SizedBox(height: 25),
-                
-                // Tombol Submit Final
-                ElevatedButton(
-                  // Tombol hanya aktif jika Foto sudah diambil, Lokasi terdeteksi, DAN
-                  // (Jika mode lembur, form keterangan sudah diisi ATAU Jika mode normal)
-                  onPressed: (_isPhotoTaken && locationDetected && !absensiProvider.isLoading)
-                      ? _submitAbsen
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: absensiProvider.isLoading || !_isPhotoTaken || !locationDetected ? Colors.grey : buttonColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                    elevation: 5,
-                  ),
-                  child: absensiProvider.isLoading
-                      ? const BouncingDotsLoader()
-                      : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.exit_to_app_rounded, size: 24),
-                              const SizedBox(width: 10),
-                              Text(
-                                isLembur ? 'SUBMIT ABSEN LEMBUR' : 'SUBMIT ABSEN PULANG',
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                        ),
-                ),
-                const SizedBox(height: 10),
-                
-                // Error Message
-                if (absensiProvider.errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(
-                      absensiProvider.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.red, fontSize: 14),
-                    ),
-                  ),
-              ],
+    );
+  }
+  
+  Widget _buildStatusRow({
+    required IconData icon,
+    required String statusText,
+    required Color color,
+    VoidCallback? onRefresh,
+    required bool isLoading,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
           ),
         ),
-      ),
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.only(left: 8.0),
+            child: SizedBox(
+              width: 15,
+              height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2, color: kSecondaryColor),
+            ),
+          )
+        else if (onRefresh != null)
+          InkWell(
+            onTap: onRefresh,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              child: Icon(Icons.refresh, color: kSecondaryColor, size: 22),
+            ),
+          )
+      ],
     );
   }
 }

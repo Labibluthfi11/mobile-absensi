@@ -1,17 +1,24 @@
-// File: lib/screens/home/absensi_sakit_form_screen.dart
-
+// lib/pages/sakit_form_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
+import 'package:absensi_app/models/absensi_model.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-// Jika kamu menggunakan provider di sini, pastikan import ini benar.
-// import 'package:absensi_app/providers/absensi_provider.dart'; 
 
+// --- Definisi Warna Korporat ---
+const Color kPrimaryColor = Color(0xFF152C5C); // Dark Corporate Blue
+const Color kAccentColor = Color(0xFF3B82F6); // Standard Bright Blue
+const Color kBackgroundColor = Color(0xFFF7F9FB); // Very Light Background
 
 class SakitFormScreen extends StatefulWidget {
-  const SakitFormScreen({super.key});
+  /// Jika [resubmitId] diberikan, screen akan berjalan dalam mode "Ajukan Ulang".
+  /// [existingAbsensi] opsional — dipakai untuk menampilkan file lama / catatan lama.
+  final int? resubmitId;
+  final Absensi? existingAbsensi;
+
+  const SakitFormScreen({super.key, this.resubmitId, this.existingAbsensi});
 
   @override
   State<SakitFormScreen> createState() => _SakitFormScreenState();
@@ -20,333 +27,642 @@ class SakitFormScreen extends StatefulWidget {
 class _SakitFormScreenState extends State<SakitFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _catatanController = TextEditingController();
+  final TextEditingController _catatanPanggilanController = TextEditingController();
   File? _pickedFile;
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
   String _tipePengajuan = 'sakit'; // Default: sakit
 
   @override
+  void initState() {
+    super.initState();
+    // Jika ada existingAbsensi, prefill catatan & tipe
+    if (widget.existingAbsensi != null) {
+      _tipePengajuan = (widget.existingAbsensi!.tipe ?? 'sakit').toLowerCase();
+      
+      // Prefill alasan utama
+      _catatanController.text = widget.existingAbsensi!.keterangan ??
+          widget.existingAbsensi!.keterangan ??
+          '';
+      
+      // Prefill catatan panggilan (untuk izin)
+      if (_tipePengajuan == 'izin') {
+        _catatanPanggilanController.text = widget.existingAbsensi!.catatanAdmin ?? '';
+      }
+      
+      debugPrint('🔄 [FORM] Prefilled data - Tipe: $_tipePengajuan, Catatan: ${_catatanController.text}');
+    }
+  }
+
+  @override
   void dispose() {
     _catatanController.dispose();
+    _catatanPanggilanController.dispose();
     super.dispose();
   }
 
   Future<File?> _compressImage(File file) async {
-    // Pastikan path dan file compress sudah benar
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      '${file.path}_compressed.jpg',
-      quality: 70,
-      minWidth: 1024,
-      minHeight: 1024,
-    );
-    return result != null ? File(result.path) : null;
+    try {
+      final result = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        '${file.path}_compressed.jpg',
+        quality: 70,
+        minWidth: 1024,
+        minHeight: 1024,
+      );
+      return result != null ? File(result.path) : null;
+    } catch (e) {
+      debugPrint('❌ Error compressing image: $e');
+      return null;
+    }
   }
 
   Future<void> _takePicture() async {
-    final XFile? capturedImage = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
-    );
+    Navigator.pop(context);
+    try {
+      final XFile? capturedImage = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
 
-    if (capturedImage != null) {
-      final compressedFile = await _compressImage(File(capturedImage.path));
-      if (compressedFile != null) {
-        setState(() {
-          _pickedFile = compressedFile;
-        });
-        _showSnackBar('Gambar berhasil dikompres dan dipilih.');
-      } else {
-        _showSnackBar('Gagal mengompres gambar.');
+      if (capturedImage != null) {
+        final compressedFile = await _compressImage(File(capturedImage.path));
+        if (mounted) {
+          setState(() {
+            _pickedFile = compressedFile;
+          });
+          _showSnackBar(
+            compressedFile != null 
+              ? 'Foto berhasil diunggah.' 
+              : 'Gagal mengompres gambar.'
+          );
+        }
       }
+    } catch (e) {
+      debugPrint('❌ Error taking picture: $e');
+      _showSnackBar('Gagal mengambil foto.');
     }
   }
 
   Future<void> _pickFile() async {
-    final XFile? pickedImage = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
+    Navigator.pop(context);
+    try {
+      final XFile? pickedImage = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
 
-    if (pickedImage != null) {
-      final compressedFile = await _compressImage(File(pickedImage.path));
-      if (compressedFile != null) {
-        setState(() {
-          _pickedFile = compressedFile;
-        });
-        _showSnackBar('Gambar berhasil dikompres dan dipilih.');
-      } else {
-        _showSnackBar('Gagal mengompres gambar.');
+      if (pickedImage != null) {
+        final compressedFile = await _compressImage(File(pickedImage.path));
+        if (mounted) {
+          setState(() {
+            _pickedFile = compressedFile;
+          });
+          _showSnackBar(
+            compressedFile != null 
+              ? 'Gambar berhasil diunggah.' 
+              : 'Gagal mengompres gambar.'
+          );
+        }
       }
+    } catch (e) {
+      debugPrint('❌ Error picking file: $e');
+      _showSnackBar('Gagal memilih file.');
     }
   }
 
   void _showSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: kPrimaryColor,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }
 
-  // Menampilkan opsi kamera/galeri
   void _showPickerOptions() {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Ambil Foto (Kamera)'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _takePicture();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('Pilih dari Galeri'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickFile();
-              },
-            ),
-          ],
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'Pilih Bukti',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: kPrimaryColor,
+                ),
+              ),
+              const Divider(height: 20),
+              _buildModalListTile(
+                icon: Icons.camera_alt_outlined,
+                title: 'Ambil Foto Langsung',
+                onTap: _takePicture,
+              ),
+              _buildModalListTile(
+                icon: Icons.photo_library_outlined,
+                title: 'Pilih dari Galeri',
+                onTap: _pickFile,
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
+  Widget _buildModalListTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: kAccentColor),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      onTap: onTap,
+    );
+  }
+
+  // ✅ FIXED: Submit form dengan proper debugging dan error handling
   Future<void> _submitForm() async {
-    if (_formKey.currentState!.validate() && _pickedFile != null) {
-      setState(() {
-        _isSubmitting = true;
-      });
+    final isResubmit = widget.resubmitId != null;
+    
+    debugPrint('📝 [FORM] Submit started - isResubmit: $isResubmit, tipe: $_tipePengajuan');
 
-      final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
-      Map<String, dynamic> result;
+    // Validasi form
+    if (!_formKey.currentState!.validate()) {
+      _showSnackBar('Periksa kembali form Anda.');
+      return;
+    }
 
-      if (_tipePengajuan == 'sakit') {
-        result = await absensiProvider.absenSakit(
-          fileBukti: _pickedFile!,
+    // Validasi khusus untuk izin
+    final isIzinValid = _tipePengajuan == 'sakit' ||
+        (_tipePengajuan == 'izin' && _catatanPanggilanController.text.isNotEmpty);
+
+    if (!isIzinValid) {
+      _showSnackBar('Harap lengkapi Catatan Kepentingan/Panggilan untuk Izin.');
+      return;
+    }
+
+    // Validasi file wajib untuk resubmit
+    if (isResubmit && _pickedFile == null) {
+      _showSnackBar('Harap unggah bukti terbaru untuk ajukan ulang.');
+      return;
+    }
+
+    // Validasi file untuk pengajuan baru
+    if (!isResubmit && _pickedFile == null) {
+      _showSnackBar('Harap unggah bukti dokumen.');
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
+    Map<String, dynamic> result = {'success': false, 'message': 'Tidak ada aksi.'};
+
+    try {
+      if (isResubmit) {
+        // ✅ Resubmit dengan logging
+        debugPrint('🔄 [FORM] Calling resubmitAbsensi...');
+        debugPrint('   - ID: ${widget.resubmitId}');
+        debugPrint('   - Tipe: $_tipePengajuan');
+        debugPrint('   - File: ${_pickedFile?.path}');
+        debugPrint('   - Catatan: ${_catatanController.text}');
+        
+        result = await absensiProvider.resubmitAbsensi(
+          absensiId: widget.resubmitId!,
+          fileBukti: _pickedFile,
           catatan: _catatanController.text,
+          catatanPanggilan: _catatanPanggilanController.text,
+          tipe: _tipePengajuan,
         );
+        
+        debugPrint('📥 [FORM] Resubmit result: ${result['success']} - ${result['message']}');
       } else {
-        result = await absensiProvider.absenIzin(
-          fileBukti: _pickedFile!,
-          catatan: _catatanController.text,
-        );
+        // Pengajuan baru
+        debugPrint('📤 [FORM] New submission - Tipe: $_tipePengajuan');
+        
+        if (_tipePengajuan == 'sakit') {
+          result = await absensiProvider.absenSakit(
+            fileBukti: _pickedFile!,
+            catatan: _catatanController.text,
+          );
+        } else {
+          result = await absensiProvider.absenIzin(
+            fileBukti: _pickedFile!,
+            catatan: _catatanController.text,
+            catatanPanggilan: _catatanPanggilanController.text,
+          );
+        }
+        
+        debugPrint('📥 [FORM] New submission result: ${result['success']} - ${result['message']}');
       }
-      
+
+      if (mounted) {
+        final message = result['message'] ?? 
+                       (result['success'] == true ? 'Berhasil diajukan!' : 'Gagal mengirim pengajuan.');
+        _showSnackBar(message);
+
+        // ✅ Jika sukses, tutup form dan trigger refresh
+        if (result['success'] == true) {
+          debugPrint('✅ [FORM] Success! Closing form...');
+          
+          // Delay sebentar agar snackbar terlihat
+          await Future.delayed(const Duration(milliseconds: 500));
+          
+          if (mounted) {
+            if (isResubmit) {
+              // Return true untuk trigger refresh di parent screen
+              Navigator.of(context).pop(true);
+            } else {
+              // Clear form untuk pengajuan baru (optional: bisa langsung pop juga)
+              _catatanController.clear();
+              _catatanPanggilanController.clear();
+              setState(() {
+                _pickedFile = null;
+              });
+              
+              // Optional: Auto-close form setelah submit berhasil
+              // Navigator.of(context).pop(true);
+            }
+          }
+        } else {
+          debugPrint('❌ [FORM] Submission failed: ${result['message']}');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [FORM] Exception during submit: $e');
+      if (mounted) {
+        _showSnackBar('Terjadi kesalahan: ${e.toString()}');
+      }
+    } finally {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
-
-        _showSnackBar(result['message'] ?? 'Berhasil mengajukan pengajuan.');
-        if (result['success'] == true) {
-          // Setelah sukses, kembali ke halaman Home
-          // Karena SakitFormScreen sekarang adalah salah satu tab,
-          // kita tidak perlu pop, user bisa pindah tab.
-        }
       }
-    } else {
-      _showSnackBar('Harap lengkapi semua field dan unggah bukti.');
     }
   }
-  
-  // Widget baru untuk tombol Izin/Sakit
+
   Widget _buildChoiceButton(String label, String value) {
     bool isSelected = _tipePengajuan == value;
-    return ElevatedButton(
-      onPressed: () {
+    Color color = value == 'sakit' ? const Color(0xFFEF4444) : kAccentColor;
+
+    return InkWell(
+      onTap: () {
         setState(() {
           _tipePengajuan = value;
+          if (value == 'sakit') {
+            _catatanPanggilanController.clear();
+          }
         });
+        debugPrint('🔄 [FORM] Tipe changed to: $value');
       },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.red : Colors.grey[300],
-        foregroundColor: isSelected ? Colors.white : Colors.black87,
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          side: isSelected ? BorderSide.none : const BorderSide(color: Colors.grey),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: 1.5,
+          ),
         ),
-        elevation: 0,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: isSelected ? Colors.white : Colors.black87,
+              fontSize: 16,
+            ),
+          ),
+        ),
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 
-  // Widget baru untuk tombol Kirim
   Widget _buildSubmitButton() {
+    final isResubmit = widget.resubmitId != null;
+    final label = isResubmit ? 'Ajukan Ulang' : 'Kirim Pengajuan';
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _submitForm,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF003366), // Warna Biru Gelap
+          backgroundColor: kPrimaryColor,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 8,
+          shadowColor: kPrimaryColor.withOpacity(0.3),
         ),
         child: _isSubmitting
-            ? const CircularProgressIndicator(color: Colors.white)
-            : const Text(
-                'Kirim Pengajuan',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                ),
+              )
+            : Text(
+                label,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
       ),
     );
   }
-  
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String labelText,
+    required String hintText,
+    required IconData icon,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: kAccentColor, width: 2.0),
+        ),
+        prefixIcon: Icon(icon, color: kAccentColor),
+        labelStyle: const TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600),
+      ),
+      validator: validator,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Karena ini adalah salah satu konten dari BottomNavigationBar, 
-    // kita tidak butuh Scaffold lagi di sini. Cukup SingleChildScrollView.
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 20.0),
-      child: Center(
-        child: Container(
-          // Card Box UI
-          margin: const EdgeInsets.symmetric(horizontal: 20.0),
-          padding: const EdgeInsets.all(20.0),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15.0),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
-                spreadRadius: 2,
-                blurRadius: 5,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // HEADER CARD
-                const Center(
-                  child: Text(
-                    'Pengajuan Ketidakhadiran',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF003366),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const Center(
-                  child: Text(
-                    'Isi form untuk mengajukan Izin atau Sakit.',
-                    style: TextStyle(color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 25),
+    final isResubmit = widget.resubmitId != null;
+    final existing = widget.existingAbsensi;
 
-                // PILIHAN JENIS IZIN/SAKIT
-                const Text(
-                  'Jenis Pengajuan',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return Scaffold(
+      backgroundColor: kBackgroundColor,
+      appBar: AppBar(
+        title: Text(isResubmit ? 'Ajukan Ulang Pengajuan' : 'Form Pengajuan'),
+        backgroundColor: kPrimaryColor,
+        foregroundColor: Colors.white,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 30.0),
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20.0),
+              padding: const EdgeInsets.all(25.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: kPrimaryColor.withOpacity(0.1),
+                    spreadRadius: 0,
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _buildChoiceButton('Sakit', 'sakit')),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildChoiceButton('Izin', 'izin')),
+                    Center(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.description_outlined, size: 40, color: kAccentColor),
+                          const SizedBox(height: 10),
+                          Text(
+                            isResubmit 
+                              ? 'Ajukan Ulang ${_tipePengajuan.toUpperCase()}' 
+                              : 'Form Pengajuan Ketidakhadiran',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: kPrimaryColor,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            isResubmit
+                                ? 'Edit data dan unggah bukti terbaru sebelum mengajukan ulang.'
+                                : 'Isi detail pengajuan ${(_tipePengajuan == 'sakit' ? 'Sakit' : 'Izin')} Anda',
+                            style: const TextStyle(color: Colors.grey, fontSize: 14),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 35, thickness: 1, color: Color(0xFFE0E0E0)),
+                    
+                    // Pilihan Jenis Pengajuan
+                    const Text(
+                      'Pilih Jenis Pengajuan',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kPrimaryColor),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(child: _buildChoiceButton('SAKIT', 'sakit')),
+                        const SizedBox(width: 15),
+                        Expanded(child: _buildChoiceButton('IZIN', 'izin')),
+                      ],
+                    ),
+                    const SizedBox(height: 25),
+                    
+                    // Alasan Utama
+                    _buildTextField(
+                      controller: _catatanController,
+                      labelText: 'Alasan Utama Ketidakhadiran',
+                      hintText: 'Masukkan Alasan selengkapnya (Wajib diisi)',
+                      icon: Icons.notes_outlined,
+                      maxLines: 4,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Alasan tidak boleh kosong';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 25),
+                    
+                    // Catatan Panggilan (hanya untuk Izin)
+                    if (_tipePengajuan == 'izin') ...[
+                      _buildTextField(
+                        controller: _catatanPanggilanController,
+                        labelText: 'Catatan Kepentingan/Panggilan (Izin)',
+                        hintText: 'Masukkan detail penting lainnya atau informasi panggilan. (Wajib diisi untuk Izin)',
+                        icon: Icons.phone_callback_outlined,
+                        maxLines: 2,
+                        validator: (value) {
+                          if (_tipePengajuan == 'izin' && (value == null || value.isEmpty)) {
+                            return 'Catatan Kepentingan/Panggilan wajib diisi untuk Izin';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 25),
+                    ],
+                    
+                    // Upload Bukti
+                    const Text(
+                      'Unggah Bukti Dokumen',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kPrimaryColor),
+                    ),
+                    const SizedBox(height: 10),
+                    InkWell(
+                      onTap: _showPickerOptions,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          hintText: 'Pilih File (Surat Dokter/Dokumen Pendukung)',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: kAccentColor, width: 2.0),
+                          ),
+                          suffixIcon: const Icon(Icons.cloud_upload_outlined, color: kAccentColor),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 15),
+                        ),
+                        child: Text(
+                          _pickedFile == null
+                              ? (isResubmit && (existing?.fileBuktiUrl != null) 
+                                  ? 'Pilih file baru (diperlukan)' 
+                                  : 'File belum dipilih')
+                              : 'File: ${_pickedFile!.path.split('/').last}',
+                          style: TextStyle(
+                            color: _pickedFile == null ? Colors.grey : Colors.black87,
+                            fontWeight: _pickedFile == null ? FontWeight.normal : FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Preview File Lama (untuk resubmit)
+                    if (isResubmit && existing != null && existing.fileBuktiUrl != null)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Bukti sebelumnya:', 
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            height: 150,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                existing.fileBuktiUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Text(
+                                    'Tidak bisa menampilkan file lama',
+                                    style: TextStyle(color: Colors.grey),
+                                  )
+                                ),
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    
+                    // Preview File Baru
+                    if (_pickedFile != null)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isResubmit && existing?.fileBuktiUrl != null)
+                            const Text(
+                              'Bukti baru:', 
+                              style: TextStyle(fontWeight: FontWeight.bold, color: kPrimaryColor)
+                            ),
+                          const SizedBox(height: 8),
+                          Center(
+                            child: Container(
+                              height: 200,
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: kAccentColor.withOpacity(0.3), width: 2),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.file(_pickedFile!, fit: BoxFit.cover),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 30),
+                    
+                    // Submit Button
+                    _buildSubmitButton(),
+                    const SizedBox(height: 15),
+                    
+                    // Footer Info
+                    Center(
+                      child: Text(
+                        isResubmit 
+                          ? '*Pastikan bukti terbaru valid. Pengajuan ulang akan memulai proses approval kembali.' 
+                          : '*Pengajuan ini akan diverifikasi oleh atasan Anda.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 20),
-
-                // ALASAN / CATATAN
-                TextFormField(
-                  controller: _catatanController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Catatan/Alasan',
-                    hintText:
-                        'Masukkan Alasan (${_tipePengajuan == 'sakit' ? 'misal: Demam tinggi, lampirkan surat dokter' : 'misal: Keperluan keluarga yang mendesak'})',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.description),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Catatan tidak boleh kosong';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // BUKTI DOKUMEN
-                const Text(
-                  'Unggah Bukti Dokumen',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                InkWell(
-                  onTap: _showPickerOptions,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      hintText: _pickedFile == null ? 'Pilih File (Foto/Dokumen)' : _pickedFile!.path.split('/').last,
-                      border: const OutlineInputBorder(),
-                      suffixIcon: const Icon(Icons.upload_file),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
-                    ),
-                    child: Text(
-                      _pickedFile == null ? 'Pilih File' : _pickedFile!.path.split('/').last,
-                      style: TextStyle(
-                        color: _pickedFile == null ? Colors.grey : Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // PREVIEW GAMBAR
-                if (_pickedFile != null)
-                  Center(
-                    child: Container(
-                      height: 200,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.file(_pickedFile!, fit: BoxFit.cover),
-                      ),
-                    ),
-                  )
-                else
-                  const Center(child: Text('Belum ada bukti yang diunggah.')),
-                
-                const SizedBox(height: 30),
-
-                // TOMBOL KIRIM
-                _buildSubmitButton(),
-                
-                const SizedBox(height: 20),
-                const Center(
-                  child: Text(
-                    'Pastikan Anda mengisi semua data di atas dengan benar.\nTerima kasih.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

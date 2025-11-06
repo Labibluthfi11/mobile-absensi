@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
-// ✅ Pastikan path ini benar! Sesuaikan jika letak ApiService berbeda
+// Pastikan path ini benar! Sesuaikan jika letak ApiService berbeda
 import '../api/api.service.dart'; 
 import '../models/user_model.dart'; 
 import 'dart:convert';
@@ -14,25 +14,30 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  // Deklarasikan ApiService sebagai field final (Dependency Injection)
+  final ApiService _apiService;
+  
+  static const String _authTokenKey = 'auth_token';
+  static const String _userDataKey = 'user_data';
+
+  // FIX: Tambahkan constructor yang menerima ApiService
+  AuthProvider({required ApiService apiService}) 
+    : _apiService = apiService,
+      super() {
+    _loadTokenAndUser();
+  }
+
   User? get user => _user;
   String? get token => _token;
   bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  final ApiService _apiService = ApiService();
-  static const String _authTokenKey = 'auth_token';
-  static const String _userDataKey = 'user_data';
-
-  AuthProvider() {
-    _loadTokenAndUser();
-  }
-
   // Digunakan untuk menyimpan user baru atau user yang terupdate (misal setelah edit profil)
   Future<void> setUser(User newUser) async {
     _user = newUser;
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    // ✅ KRITIS: Simpan objek user sebagai JSON string
+    // KRITIS: Simpan objek user sebagai JSON string
     await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
     notifyListeners();
   }
@@ -46,7 +51,7 @@ class AuthProvider extends ChangeNotifier {
       try {
         final decodedData = jsonDecode(userDataJson);
         if (decodedData is Map<String, dynamic>) {
-          // ✅ Gunakan User.fromJson untuk memuat data dari SharedPreferences
+          // Gunakan User.fromJson untuk memuat data dari SharedPreferences
           _user = User.fromJson(decodedData);
           if (_user != null) {
               notifyListeners();
@@ -81,7 +86,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       final String? accessToken = result['access_token'];
-      // ✅ PERBAIKAN KRITIS: Casting langsung ke User? karena ApiService sudah melakukan User.fromJson()
+      // PERBAIKAN KRITIS: Casting langsung ke User? karena ApiService sudah melakukan User.fromJson()
       final User? userObject = result['user'] as User?; 
 
       if (accessToken != null && userObject != null) {
@@ -90,7 +95,7 @@ class AuthProvider extends ChangeNotifier {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_authTokenKey, _token!);
-        // ✅ Simpan data user yang sudah di-parse
+        // Simpan data user yang sudah di-parse
         await prefs.setString(_userDataKey, jsonEncode(_user!.toJson())); 
 
         _isLoading = false;
@@ -121,7 +126,7 @@ class AuthProvider extends ChangeNotifier {
     required String passwordConfirmation,
     required String idKaryawan, 
     required String departemen, 
-    required String employmentType, // ✅ PARAMETER BARU DITAMBAHKAN
+    required String employmentType, // PARAMETER BARU DITAMBAHKAN
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -135,11 +140,11 @@ class AuthProvider extends ChangeNotifier {
         passwordConfirmation: passwordConfirmation,
         idKaryawan: idKaryawan, 
         departemen: departemen, 
-        employmentType: employmentType, // ✅ PARAMETER BARU DITERUSKAN
+        employmentType: employmentType, // PARAMETER BARU DITERUSKAN
       );
 
       final String? accessToken = result['access_token'];
-      // ✅ PERBAIKAN KRITIS: Casting langsung ke User?
+      // PERBAIKAN KRITIS: Casting langsung ke User?
       final User? userObject = result['user'] as User?;
 
 
@@ -149,7 +154,7 @@ class AuthProvider extends ChangeNotifier {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_authTokenKey, _token!);
-        // ✅ Simpan data user yang sudah di-parse
+        // Simpan data user yang sudah di-parse
         await prefs.setString(_userDataKey, jsonEncode(_user!.toJson())); 
 
         _isLoading = false;
@@ -205,9 +210,9 @@ class AuthProvider extends ChangeNotifier {
           Map<String, dynamic> errors = e.response!.data['errors'];
           // Ambil pesan error pertama dari list error
           if (errors.values.isNotEmpty && errors.values.first is List) {
-             message = errors.values.first[0];
+              message = errors.values.first[0];
           } else {
-             message = 'Validation error.';
+              message = 'Validation error.';
           }
         } else {
           message = 'Server error: ${e.response!.statusCode}';

@@ -1,11 +1,15 @@
+// lib/services/api_service.dart
+
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mime/mime.dart';
+import 'package:http_parser/http_parser.dart';
+
 import '../core/constants/api_constants.dart';
 import '../models/user_model.dart';
 import '../models/absensi_model.dart';
-import 'package:mime/mime.dart';
-import 'package:http_parser/http_parser.dart';
+import '../models/notification_model.dart';
 
 class ApiService {
   late Dio _dio;
@@ -17,9 +21,7 @@ class ApiService {
         baseUrl: ApiConstants.BASE_URL,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: {'Accept': 'application/json'},
       ),
     );
 
@@ -42,7 +44,10 @@ class ApiService {
     ));
   }
 
-  // AUTH
+  // =========================================================================
+  // SECTION AUTH
+  // =========================================================================
+
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
@@ -152,7 +157,10 @@ class ApiService {
     }
   }
 
-  // PROFILE
+  // =========================================================================
+  // SECTION PROFILE
+  // =========================================================================
+
   Future<Map<String, dynamic>> updateProfile({
     required String name,
     required String email,
@@ -188,9 +196,7 @@ class ApiService {
       final response = await _dio.post(
         '/user/profile',
         data: formData,
-        options: Options(
-          contentType: 'multipart/form-data',
-        ),
+        options: Options(contentType: 'multipart/form-data'),
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -208,7 +214,10 @@ class ApiService {
     }
   }
 
-  // ABSENSI
+  // =========================================================================
+  // SECTION ABSENSI
+  // =========================================================================
+
   Future<Map<String, dynamic>> absenMasuk({
     required File foto,
     required double lat,
@@ -236,14 +245,12 @@ class ApiService {
     }
   }
 
-  // PERUBAHAN UTAMA DI SINI
   Future<Map<String, dynamic>> absenPulang({
     required File foto,
     required double lat,
     required double lng,
     String? tipe,
-    // Menambahkan parameter keterangan untuk lembur
-    String? keterangan, 
+    String? keterangan,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -252,7 +259,6 @@ class ApiService {
         'lat': lat,
         'lng': lng,
         if (tipe != null) 'tipe': tipe,
-        // Menambahkan keterangan ke FormData jika tidak null
         if (keterangan != null) 'keterangan': keterangan,
       });
 
@@ -268,9 +274,6 @@ class ApiService {
     }
   }
 
-  // Method absenLembur ini sekarang berpotensi duplikat
-  // Jika logic lembur sepenuhnya digabung ke absenPulang, method ini bisa dihapus.
-  // Tapi untuk amannya, saya biarkan tidak berubah untuk saat ini.
   Future<Map<String, dynamic>> absenLembur({
     required File foto,
     required double lat,
@@ -330,12 +333,12 @@ class ApiService {
       String fileName = fileBukti.path.split('/').last;
       FormData formData = FormData.fromMap({
         'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
-        'catatan': catatan,
-        'tipe': 'sakit',
+        'keterangan_izin_sakit': catatan,
+        'keterangan': catatan,
+        'status': 'sakit',
       });
 
       final response = await _dio.post('/absensi/sakit', data: formData);
-
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin sakit berhasil.'};
       }
@@ -350,17 +353,18 @@ class ApiService {
   Future<Map<String, dynamic>> absenIzin({
     required File fileBukti,
     required String catatan,
+    required String catatanPanggilan,
   }) async {
     try {
       String fileName = fileBukti.path.split('/').last;
       FormData formData = FormData.fromMap({
         'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
         'catatan': catatan,
+        'catatan_panggilan': catatanPanggilan,
         'tipe': 'izin',
       });
 
       final response = await _dio.post('/absensi/izin', data: formData);
-
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin berhasil.'};
       }
@@ -372,7 +376,170 @@ class ApiService {
     }
   }
 
-  // TOKEN & ERROR HANDLING
+  // =========================================================================
+  // NEW METHODS: RESUBMIT
+  // =========================================================================
+
+  Future<Map<String, dynamic>> resubmitSakit({
+    required int absensiId,
+    required File fileBukti,
+    required String catatan,
+  }) async {
+    try {
+      String fileName = fileBukti.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
+        'keterangan_izin_sakit': catatan,
+        'keterangan': catatan,
+        'status': 'pending',
+        '_method': 'PUT',
+      });
+
+      final response = await _dio.post('/absensi/sakit/$absensiId/resubmit', data: formData);
+      if (response.data != null) {
+        return {'success': true, 'message': response.data['message'] ?? 'Resubmit izin sakit berhasil.'};
+      }
+      return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal resubmit izin sakit');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> resubmitIzin({
+    required int absensiId,
+    required File fileBukti,
+    required String catatan,
+    required String catatanPanggilan,
+  }) async {
+    try {
+      String fileName = fileBukti.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
+        'catatan': catatan,
+        'catatan_panggilan': catatanPanggilan,
+        'tipe': 'izin',
+        'status': 'pending',
+        '_method': 'PUT',
+      });
+
+      
+
+      final response = await _dio.post('/absensi/izin/$absensiId/resubmit', data: formData);
+      if (response.data != null) {
+        return {'success': true, 'message': response.data['message'] ?? 'Resubmit izin berhasil.'};
+      }
+      return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal resubmit izin');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> resubmitLembur({
+  required int absensiId,
+  required File foto,
+  required double lat,
+  required double lng,
+  required String jamMulai,
+  required String jamSelesai,
+  required bool istirahat,
+  required String keterangan,
+}) async {
+  try {
+    String fileName = foto.path.split('/').last;
+    FormData formData = FormData.fromMap({
+      'foto': await MultipartFile.fromFile(foto.path, filename: fileName),
+      'lat': lat,
+      'lng': lng,
+      'jam_mulai': jamMulai,
+      'jam_selesai': jamSelesai,
+      'istirahat': istirahat ? '1' : '0',
+      'keterangan': keterangan,
+      'status': 'pending',
+      '_method': 'PUT',
+    });
+
+    final response = await _dio.post('/absensi/lembur/$absensiId/resubmit', data: formData);
+    if (response.data != null) {
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'Resubmit lembur berhasil.',
+        'data': response.data['data'] ?? null
+      };
+    }
+    return {'success': false, 'message': 'Data tidak ditemukan.'};
+  } on DioException catch (e) {
+    return _handleDioError(e, 'Gagal resubmit lembur');
+  } catch (e) {
+    return {'success': false, 'message': e.toString()};
+  }
+}
+
+
+  // =========================================================================
+  // SECTION NOTIFICATIONS
+  // =========================================================================
+
+  Future<int> fetchUnreadCount() async {
+    try {
+      final response = await _dio.get('/notifications');
+      if (response.statusCode == 200 && response.data != null && response.data['data'] is List) {
+        final List notifs = response.data['data'];
+        final unread = notifs.where((n) {
+          final isRead = n['is_read'];
+          return isRead == 0 || isRead == '0';
+        }).length;
+        return unread;
+      }
+      return 0;
+    } on DioException catch (e) {
+      _handleDioError(e, 'Gagal mengambil jumlah notifikasi belum dibaca');
+      return 0;
+    } catch (e) {
+      print('Error fetching unread count: $e');
+      return 0;
+    }
+  }
+
+  Future<List<NotificationModel>> fetchNotifications() async {
+    try {
+      final response = await _dio.get('/notifications');
+      if (response.statusCode == 200 && response.data != null && response.data['data'] is List) {
+        return (response.data['data'] as List)
+            .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      _handleDioError(e, 'Gagal mengambil daftar notifikasi');
+      return [];
+    } catch (e) {
+      print('Error fetching notifications: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> markNotificationAsRead(int notificationId) async {
+    try {
+      final response = await _dio.put('/notifications/$notificationId/read');
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': response.data['message'] ?? 'Notifikasi berhasil ditandai dibaca.'};
+      }
+      return {'success': false, 'message': response.data['message'] ?? 'Gagal menandai notifikasi.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal menandai notifikasi dibaca');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // =========================================================================
+  // SECTION TOKEN & ERROR HANDLING
+  // =========================================================================
+
   Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_authTokenKey, token);

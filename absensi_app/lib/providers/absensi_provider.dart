@@ -4,7 +4,7 @@ import 'package:absensi_app/models/absensi_model.dart';
 import 'dart:io';
 
 class AbsensiProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
 
   List<Absensi> _myAbsensiList = [];
   Absensi? _currentDayAbsensi;
@@ -34,7 +34,8 @@ class AbsensiProvider with ChangeNotifier {
   int get totalLembur => _totalLembur;
   int get totalTanpaKet => _totalTanpaKet;
 
-  AbsensiProvider() {
+  AbsensiProvider({required ApiService apiService}) 
+    : _apiService = apiService {
     refreshAbsensi();
   }
 
@@ -54,7 +55,6 @@ class AbsensiProvider with ChangeNotifier {
     _errorMessage = null;
     _isInitialLoadComplete = false;
     notifyListeners();
-
     await fetchMyAbsensi();
   }
 
@@ -114,9 +114,7 @@ class AbsensiProvider with ChangeNotifier {
         ),
       );
 
-      if (_currentDayAbsensi?.id == -1) {
-        _currentDayAbsensi = null;
-      }
+      if (_currentDayAbsensi?.id == -1) _currentDayAbsensi = null;
     } catch (_) {
       _currentDayAbsensi = null;
     }
@@ -144,6 +142,9 @@ class AbsensiProvider with ChangeNotifier {
     }
   }
 
+  // -----------------------------
+  // Absensi Methods
+  // -----------------------------
   Future<Map<String, dynamic>> absenMasuk({
     required File foto,
     required double lat,
@@ -152,14 +153,8 @@ class AbsensiProvider with ChangeNotifier {
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
-
     try {
-      result = await _apiService.absenMasuk(
-        foto: foto,
-        lat: lat,
-        lng: lng,
-        status: status,
-      );
+      result = await _apiService.absenMasuk(foto: foto, lat: lat, lng: lng, status: status);
       if (result['success'] == true) {
         await fetchMyAbsensi();
       } else {
@@ -180,20 +175,17 @@ class AbsensiProvider with ChangeNotifier {
     required double lat,
     required double lng,
     String? tipe,
-    // PERUBAHAN UTAMA: Menambahkan keterangan untuk lembur
-    String? keterangan, 
+    String? keterangan,
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
-
     try {
       result = await _apiService.absenPulang(
-        foto: foto,
-        lat: lat,
-        lng: lng,
-        tipe: tipe,
-        // Kirim keterangan ke ApiService
-        keterangan: keterangan, 
+        foto: foto, 
+        lat: lat, 
+        lng: lng, 
+        tipe: tipe, 
+        keterangan: keterangan
       );
       if (result['success'] == true) {
         await fetchMyAbsensi();
@@ -221,7 +213,6 @@ class AbsensiProvider with ChangeNotifier {
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
-
     try {
       result = await _apiService.absenLembur(
         foto: foto,
@@ -248,17 +239,13 @@ class AbsensiProvider with ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> absenSakit({
-    required File fileBukti,
-    required String catatan,
+    required File fileBukti, 
+    required String catatan
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
-
     try {
-      result = await _apiService.absenSakit(
-        fileBukti: fileBukti,
-        catatan: catatan,
-      );
+      result = await _apiService.absenSakit(fileBukti: fileBukti, catatan: catatan);
       if (result['success'] == true) {
         await fetchMyAbsensi();
       } else {
@@ -277,14 +264,15 @@ class AbsensiProvider with ChangeNotifier {
   Future<Map<String, dynamic>> absenIzin({
     required File fileBukti,
     required String catatan,
+    required String catatanPanggilan,
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
-
     try {
       result = await _apiService.absenIzin(
         fileBukti: fileBukti,
         catatan: catatan,
+        catatanPanggilan: catatanPanggilan,
       );
       if (result['success'] == true) {
         await fetchMyAbsensi();
@@ -298,6 +286,106 @@ class AbsensiProvider with ChangeNotifier {
       setIsLoading(false);
       notifyListeners();
     }
+    return result;
+  }
+
+  // -----------------------------
+  // ✅ FIXED: Resubmit Absensi (sakit / izin / lembur)
+  // -----------------------------
+  // lib/providers/absensi_provider.dart
+// HANYA BAGIAN METHOD resubmitAbsensi yang diperbaiki
+
+  // ✅ FIXED: Resubmit dengan proper refresh
+  Future<Map<String, dynamic>> resubmitAbsensi({
+    required int absensiId,
+    File? fileBukti,
+    String? catatan,
+    String? catatanPanggilan,
+    File? fotoPulang,
+    double? lat,
+    double? lng,
+    String? jamMulai,
+    String? jamSelesai,
+    bool? istirahat,
+    required String tipe, // "sakit" or "izin" or "lembur"
+  }) async {
+    debugPrint('🔄 [PROVIDER] Mulai resubmit untuk ID: $absensiId, Tipe: $tipe');
+    
+    setIsLoading(true);
+    Map<String, dynamic> result;
+    
+    try {
+      // ✅ Panggil API resubmit sesuai tipe
+      if (tipe == 'sakit') {
+        if (fileBukti == null) {
+          result = {'success': false, 'message': 'File bukti wajib diisi'};
+        } else {
+          debugPrint('📤 [API] Calling resubmitSakit...');
+          result = await _apiService.resubmitSakit(
+            absensiId: absensiId,
+            fileBukti: fileBukti,
+            catatan: catatan ?? '',
+          );
+        }
+      } else if (tipe == 'izin') {
+        if (fileBukti == null) {
+          result = {'success': false, 'message': 'File bukti wajib diisi'};
+        } else {
+          debugPrint('📤 [API] Calling resubmitIzin...');
+          result = await _apiService.resubmitIzin(
+            absensiId: absensiId,
+            fileBukti: fileBukti,
+            catatan: catatan ?? '',
+            catatanPanggilan: catatanPanggilan ?? '',
+          );
+        }
+      } else if (tipe == 'lembur') {
+        if (fotoPulang == null) {
+          result = {'success': false, 'message': 'Foto wajib diisi'};
+        } else {
+          debugPrint('📤 [API] Calling resubmitLembur...');
+          result = await _apiService.resubmitLembur(
+            absensiId: absensiId,
+            foto: fotoPulang,
+            lat: lat ?? 0.0,
+            lng: lng ?? 0.0,
+            jamMulai: jamMulai ?? '',
+            jamSelesai: jamSelesai ?? '',
+            istirahat: istirahat ?? false,
+            keterangan: catatan ?? '',
+          );
+        }
+      } else {
+        result = {'success': false, 'message': 'Tipe absensi tidak dikenal'};
+      }
+
+      debugPrint('📥 [API] Response: ${result['success']} - ${result['message']}');
+
+      // ✅ CRITICAL FIX: ALWAYS refresh dari server setelah resubmit
+      if (result['success'] == true) {
+        debugPrint('✅ [REFRESH] Resubmit berhasil, fetching fresh data from server...');
+        
+        // Clear dulu data lama
+        _myAbsensiList.clear();
+        _currentDayAbsensi = null;
+        notifyListeners();
+        
+        // Fetch data baru dari server
+        await fetchMyAbsensi();
+        
+        debugPrint('✅ [REFRESH] Data berhasil diperbarui. Total records: ${_myAbsensiList.length}');
+      } else {
+        _errorMessage = result['message'];
+        debugPrint('❌ [ERROR] Resubmit gagal: ${result['message']}');
+      }
+    } catch (e) {
+      _errorMessage = 'Error resubmit absensi: ${e.toString()}';
+      debugPrint('❌ [EXCEPTION] Resubmit error: $e');
+      result = {'success': false, 'message': _errorMessage};
+    } finally {
+      setIsLoading(false);
+    }
+    
     return result;
   }
 

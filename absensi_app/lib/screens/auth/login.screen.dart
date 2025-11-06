@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -12,8 +12,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  // Menggunakan controller yang sudah ada dari kode kedua
+  final TextEditingController _emailController = TextEditingController(); 
+  final TextEditingController _passwordController = TextEditingController(); 
+  // Mengganti _passController menjadi _passwordController agar sesuai dengan kode kedua
+  // final TextEditingController _passController = TextEditingController(); 
 
   @override
   void dispose() {
@@ -22,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Fungsi login Anda yang dipertahankan
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -55,157 +59,235 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // UI yang baru (mengikuti style kode pertama)
     return Scaffold(
-      backgroundColor: const Color(0xFF0F4C81), // Latar belakang biru solid sesuai gambar
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 50.0),
-          child: Container(
-            padding: const EdgeInsets.all(24.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+      backgroundColor: Colors.white, // Background putih seperti kode pertama
+      body: SingleChildScrollView( // Tambahkan SingleChildScrollView agar tidak overflow
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Gambar Awal (mengikuti kode pertama)
+            Padding(
+              padding: const EdgeInsets.only(left: 15, top: 15),
+              child: Image.asset(
+                "assets/images/vector-1.png", // Pastikan path ini benar di project Anda
+                // Sesuaikan lebar dan tinggi agar responsif
+                width: MediaQuery.of(context).size.width, 
+                height: MediaQuery.of(context).size.height * 0.45,
+                fit: BoxFit.contain, // Ubah BoxFit agar gambar terlihat utuh
+              ),
             ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.access_time, size: 50, color: Color(0xFF0F4C81)), // Icon jam
-                  const SizedBox(height: 10),
-                  Text(
-                    'Ansel Muda Berkarya',
-                    style: GoogleFonts.poppins(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF0F4C81),
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Masuk ke akun anda',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-
-                  // Email
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'Masukkan email',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+            const SizedBox(
+              height: 18,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 50),
+              child: Form( // Pertahankan Form dari kode kedua
+                key: _formKey,
+                child: Column(
+                  textDirection: TextDirection.ltr,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Judul 'Log In' (mengikuti kode pertama)
+                    const Text(
+                      'Log In',
+                      style: TextStyle(
+                        color: Color(0xFF755DC1), // Warna ungu
+                        fontSize: 27,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w500,
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      prefixIcon: const Icon(Icons.email),
                     ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Email tidak boleh kosong';
-                      }
-                      if (!value.contains('@')) {
-                        return 'Format email tidak valid';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Password
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Masukkan password',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      prefixIcon: const Icon(Icons.lock),
+                    const SizedBox(
+                      height: 50,
                     ),
-                    obscureText: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Password tidak boleh kosong';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 30),
 
-                  // Tombol Login
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, child) {
-                      return authProvider.isLoading
-                          ? const CircularProgressIndicator()
-                          : SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _login,
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  backgroundColor: const Color(0xFF0F4C81),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
-                                label: Text(
-                                  'Log In',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Pindah ke register
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Belum punya akun?',
-                        style: GoogleFonts.poppins(color: Colors.grey[600]),
+                    // --- Bidang Email ---
+                    TextFormField( // Menggunakan TextFormField dari kode kedua untuk validasi
+                      controller: _emailController,
+                      textAlign: TextAlign.start, // Diubah menjadi start agar lebih umum
+                      style: const TextStyle(
+                        color: Color(0xFF393939),
+                        fontSize: 13,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w400,
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pushReplacementNamed('/register');
-                        },
-                        child: Text(
-                          'Sign In',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0F4C81),
+                      // Dekorasi dari kode pertama
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        labelStyle: TextStyle(
+                          color: Color(0xFF755DC1),
+                          fontSize: 15,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w600,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                          borderSide: BorderSide(
+                            width: 1,
+                            color: Color(0xFF837E93),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                          borderSide: BorderSide(
+                            width: 1,
+                            color: Color(0xFF9F7BFF),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ],
+                      keyboardType: TextInputType.emailAddress, // Pertahankan dari kode kedua
+                      validator: (value) { // Pertahankan validator dari kode kedua
+                        if (value == null || value.isEmpty) {
+                          return 'Email tidak boleh kosong';
+                        }
+                        if (!value.contains('@')) {
+                          return 'Format email tidak valid';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(
+                      height: 30,
+                    ),
+
+                    // --- Bidang Password ---
+                    TextFormField( // Menggunakan TextFormField dari kode kedua untuk validasi
+                      controller: _passwordController,
+                      textAlign: TextAlign.start, // Diubah menjadi start
+                      obscureText: true, // Pertahankan dari kode kedua
+                      style: const TextStyle(
+                        color: Color(0xFF393939),
+                        fontSize: 13,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w400,
+                      ),
+                      // Dekorasi dari kode pertama
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        labelStyle: TextStyle(
+                          color: Color(0xFF755DC1),
+                          fontSize: 15,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w600,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                          borderSide: BorderSide(
+                            width: 1,
+                            color: Color(0xFF837E93),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                          borderSide: BorderSide(
+                            width: 1,
+                            color: Color(0xFF9F7BFF),
+                          ),
+                        ),
+                      ),
+                      validator: (value) { // Pertahankan validator dari kode kedua
+                        if (value == null || value.isEmpty) {
+                          return 'Password tidak boleh kosong';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(
+                      height: 25,
+                    ),
+
+                    // --- Tombol Sign In (Login) ---
+                    Consumer<AuthProvider>( // Pertahankan Consumer/fungsi login dari kode kedua
+                      builder: (context, authProvider, child) {
+                        return authProvider.isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : ClipRRect( // Style tombol dari kode pertama
+                                borderRadius: const BorderRadius.all(Radius.circular(10)),
+                                child: SizedBox(
+                                  width: double.infinity, // Dibuat penuh
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed: _login, // Menggunakan fungsi login Anda
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF9F7BFF), // Warna ungu
+                                    ),
+                                    child: const Text(
+                                      'Sign In', // Ubah teks tombol jika perlu, menggunakan 'Sign In' untuk meniru kode pertama
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontFamily: 'Poppins',
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                      },
+                    ),
+                    
+                    const SizedBox(
+                      height: 15,
+                    ),
+
+                    // --- "Don't have an account?" / Pindah ke Register ---
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center, // Pusatkan row
+                      children: [
+                        const Text(
+                          'Don’t have an account?',
+                          style: TextStyle(
+                            color: Color(0xFF837E93),
+                            fontSize: 13,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 2.5,
+                        ),
+                        // Menggunakan TextButton untuk 'Sign Up' 
+                        TextButton(
+                          onPressed: () {
+                            // Mengganti navigasi PageController dengan navigasi named route Anda
+                            Navigator.of(context).pushReplacementNamed('/register'); 
+                          },
+                          child: const Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              color: Color(0xFF755DC1),
+                              fontSize: 13,
+                              fontFamily: 'Poppins',
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(
+                      height: 15,
+                    ),
+
+                    // --- Forget Password? ---
+                    const Center( // Pusatkan Text
+                      child: Text(
+                        'Forget Password?',
+                        style: TextStyle(
+                          color: Color(0xFF755DC1),
+                          fontSize: 13,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 50), // Tambahkan ruang bawah
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
