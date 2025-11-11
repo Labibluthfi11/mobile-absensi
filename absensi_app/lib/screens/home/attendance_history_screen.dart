@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
 import 'package:absensi_app/models/absensi_model.dart';
+// ❌ HAPUS IMPORT SALARY CARD
+// import 'package:absensi_app/widgets/salary_info_card.dart';
 import 'package:intl/intl.dart';
 
 const Color kPrimaryColor = Color(0xFF152C5C);
@@ -27,7 +29,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     });
   }
 
-  // 🆕 Method untuk menghitung total hadir dan telat
+  // Method untuk menghitung total hadir dan telat
   Map<String, int> _calculateAttendanceStats(List<Absensi> absensiList) {
     int totalHadir = 0;
     int totalTelat = 0;
@@ -55,7 +57,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     Intl.defaultLocale = 'id_ID';
     final AbsensiProvider absensiProvider = Provider.of<AbsensiProvider>(context);
     
-    // 🆕 Hitung statistik hadir dan telat
+    // Hitung statistik hadir dan telat
     final stats = _calculateAttendanceStats(absensiProvider.myAbsensiList);
 
     return Scaffold(
@@ -88,6 +90,15 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                                   final Absensi absensi =
                                       absensiProvider.myAbsensiList[index];
                                   return _buildHistoryCard(absensi, absensiProvider);
+                                  
+                                  // ❌ HAPUS SALARY INFO CARD
+                                  // return Column(
+                                  //   children: [
+                                  //     _buildHistoryCard(absensi, absensiProvider),
+                                  //     if (absensi.baseSalary != null)
+                                  //       SalaryInfoCard(absensi: absensi),
+                                  //   ],
+                                  // );
                                 },
                               ),
               ],
@@ -106,14 +117,14 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           spacing: 15,
           runSpacing: 15,
           children: [
-            // 🆕 Card Hadir
+            // Card Hadir
             _buildStatItem(
               'Hadir', 
               stats['hadir'].toString(),
               const Color(0xFF10B981), 
               Icons.check_circle
             ),
-            // 🆕 Card Telat
+            // Card Telat
             _buildStatItem(
               'Telat', 
               stats['telat'].toString(),
@@ -345,7 +356,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             ),
             const Divider(height: 25, thickness: 1, color: Color(0xFFE0E0E0)),
             
-            // 🆕 TAMPILKAN BADGE TELAT (jika ada)
+            // ✅ BADGE TELAT TETAP DITAMPILKAN (biar karyawan tau dia telat)
             if (absensi.isLate == true && absensi.lateDurationText != null) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

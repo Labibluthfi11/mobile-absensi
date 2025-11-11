@@ -32,9 +32,18 @@ class Absensi {
   final Map<String, dynamic>? workflowStatus;
   final String? rejectedBy;
 
-  // 🆕 FIELD BARU: Keterlambatan
+  // Keterlambatan
   final int? lateMinutes;
   final String? lateDurationText;
+
+  // 🆕 Field Gaji
+  final int? roundedLateMinutes;
+  final double? baseSalary;
+  final double? latePenalty;
+  final double? finalSalary;
+  final String? formattedBaseSalary;
+  final String? formattedLatePenalty;
+  final String? formattedFinalSalary;
 
   Absensi({
     required this.id,
@@ -65,6 +74,13 @@ class Absensi {
     this.rejectedBy,
     this.lateMinutes,
     this.lateDurationText,
+    this.roundedLateMinutes,
+    this.baseSalary,
+    this.latePenalty,
+    this.finalSalary,
+    this.formattedBaseSalary,
+    this.formattedLatePenalty,
+    this.formattedFinalSalary,
   });
 
   Absensi copyWith({
@@ -96,6 +112,13 @@ class Absensi {
     int? currentApprovalLevel,
     int? lateMinutes,
     String? lateDurationText,
+    int? roundedLateMinutes,
+    double? baseSalary,
+    double? latePenalty,
+    double? finalSalary,
+    String? formattedBaseSalary,
+    String? formattedLatePenalty,
+    String? formattedFinalSalary,
   }) {
     return Absensi(
       id: id ?? this.id,
@@ -126,6 +149,13 @@ class Absensi {
       rejectedBy: rejectedBy ?? this.rejectedBy,
       lateMinutes: lateMinutes ?? this.lateMinutes,
       lateDurationText: lateDurationText ?? this.lateDurationText,
+      roundedLateMinutes: roundedLateMinutes ?? this.roundedLateMinutes,
+      baseSalary: baseSalary ?? this.baseSalary,
+      latePenalty: latePenalty ?? this.latePenalty,
+      finalSalary: finalSalary ?? this.finalSalary,
+      formattedBaseSalary: formattedBaseSalary ?? this.formattedBaseSalary,
+      formattedLatePenalty: formattedLatePenalty ?? this.formattedLatePenalty,
+      formattedFinalSalary: formattedFinalSalary ?? this.formattedFinalSalary,
     );
   }
 
@@ -174,11 +204,26 @@ class Absensi {
           : null,
       workflowStatus: parseWorkflow(json['workflow_status']),
       rejectedBy: json['rejected_by']?.toString(),
-      // 🆕 Parse late_minutes dan late_duration_text
       lateMinutes: json['late_minutes'] != null
           ? int.tryParse(json['late_minutes'].toString()) ?? 0
           : null,
       lateDurationText: json['late_duration_text']?.toString(),
+      // 🆕 Parse field gaji
+      roundedLateMinutes: json['rounded_late_minutes'] != null
+          ? int.tryParse(json['rounded_late_minutes'].toString())
+          : null,
+      baseSalary: json['base_salary'] != null
+          ? double.tryParse(json['base_salary'].toString())
+          : null,
+      latePenalty: json['late_penalty'] != null
+          ? double.tryParse(json['late_penalty'].toString())
+          : null,
+      finalSalary: json['final_salary'] != null
+          ? double.tryParse(json['final_salary'].toString())
+          : null,
+      formattedBaseSalary: json['formatted_base_salary']?.toString(),
+      formattedLatePenalty: json['formatted_late_penalty']?.toString(),
+      formattedFinalSalary: json['formatted_final_salary']?.toString(),
     );
   }
 
@@ -206,6 +251,5 @@ class Absensi {
     return "-";
   }
 
-  // 🆕 HELPER: Cek apakah telat
-  bool get isLate => (lateMinutes ?? 0) > 0 && status.toLowerCase() == 'hadir';
+  bool get isLate => (lateMinutes ?? 0) > 0 && status.toLowerCase() == 'hadir'; 
 }
