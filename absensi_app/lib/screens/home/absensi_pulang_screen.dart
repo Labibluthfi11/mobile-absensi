@@ -6,10 +6,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io'; 
 import 'dart:async'; 
-import '../../providers/absensi_provider.dart'; // Pastikan path ini benar
+import '../../providers/absensi_provider.dart'; 
 import 'package:intl/intl.dart';
 
-// --- Definisi Warna Korporat Premium ---
 const Color kPrimaryColor = Color(0xFF152C5C); // Deep Corporate Blue
 const Color kSecondaryColor = Color(0xFF3B82F6); // Bright Accent Blue (Untuk Aksi Utama)
 const Color kSuccessColor = Color(0xFF10B981); // Emerald Green (Untuk Status Sukses)
