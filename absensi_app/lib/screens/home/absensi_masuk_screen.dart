@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
+import 'custom_camera_screen.dart';
 import 'dart:io'; 
 import 'dart:async'; 
 import '../../providers/absensi_provider.dart'; 
@@ -108,8 +108,8 @@ class AbsensiMasukScreen extends StatefulWidget {
   State<AbsensiMasukScreen> createState() => _AbsensiMasukScreenState();
 }
 
-class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
-  final ImagePicker _picker = ImagePicker();
+class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> 
+{
   File? _capturedImageFile; 
 
   // State untuk Realtime Clock
@@ -237,40 +237,22 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
   }
 
   Future<void> _takePicture(AbsensiProvider provider) async {
-    try {
-      provider.setIsLoading(true); 
-      
-      final XFile? capturedImage = await _picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        imageQuality: 70, 
-        maxWidth: 800,
-      );
+  final File? result = await Navigator.push<File>(
+    context,
+    MaterialPageRoute(builder: (_) => const CustomCameraScreen()),
+  );
 
-      if (capturedImage != null) {
-        if (mounted) {
-          setState(() {
-            _capturedImageFile = File(capturedImage.path);
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Foto berhasil diambil. Silakan kirim absensi.'),
-              backgroundColor: kSecondaryColor,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } 
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal membuka kamera: ${e.toString()}')),
-        );
-      }
-    } finally {
-      provider.setIsLoading(false);
-    }
+  if (result != null && mounted) {
+    setState(() => _capturedImageFile = result);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Foto berhasil diambil. Silakan kirim absensi.'),
+        backgroundColor: kSecondaryColor,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
+}
   
   Future<void> _submitAbsenMasuk(AbsensiProvider provider) async {
     // 1. Validasi Lokasi
@@ -320,7 +302,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_outline, color: kSuccessColor, size: 60),
+              const Icon(Icons.check_circle_outline, color: kSuccessColor, size: 60),
               const SizedBox(height: 15),
               const Text(
                 'Absensi Berhasil Dicatat!',
@@ -523,7 +505,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
                       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.8),
                     ),
                     child: absensiProvider.isLoading
-                        ? BouncingDotsLoader(dotColor: Colors.white)
+                        ? const BouncingDotsLoader(dotColor: Colors.white)
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -540,7 +522,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
                       padding: const EdgeInsets.only(top: 10.0),
                       child: TextButton(
                         onPressed: _retakePicture,
-                        child: Text(
+                        child: const Text(
                           'Ulangi Foto',
                           style: TextStyle(color: kSecondaryColor, fontWeight: FontWeight.bold),
                         ),
@@ -592,7 +574,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
             onTap: onRefresh,
             child: Container(
               padding: const EdgeInsets.all(5),
-              child: Icon(Icons.refresh, color: kSecondaryColor, size: 22),
+              child: const Icon(Icons.refresh, color: kSecondaryColor, size: 22),
             ),
           )
       ],

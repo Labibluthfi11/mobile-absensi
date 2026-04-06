@@ -5,7 +5,7 @@ import 'package:absensi_app/screens/auth/login.screen.dart';
 class SplashScreen extends StatefulWidget {
   final String title;
 
-  const SplashScreen({Key? key, required this.title}) : super(key: key);
+  const SplashScreen({super.key, required this.title});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();

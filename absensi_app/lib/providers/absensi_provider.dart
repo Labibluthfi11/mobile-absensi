@@ -58,20 +58,31 @@ class AbsensiProvider with ChangeNotifier {
     await fetchMyAbsensi();
   }
 
-  Future<void> fetchMyAbsensi() async {
+ // ✅ UPDATE: Tambahkan parameter optional untuk filter
+  Future<void> fetchMyAbsensi({String? searchDate, int? month, int? year}) async {
     setIsLoading(true);
     _errorMessage = null;
 
     try {
-      final absensiList = await _apiService.getAbsensiMe();
+      // ✅ Kirim parameter ke API Service
+      final absensiList = await _apiService.getAbsensiMe(
+        searchDate: searchDate,
+        month: month,
+        year: year,
+      );
+      
       _myAbsensiList = absensiList ?? [];
-      await fetchCurrentDayAbsensi();
+      
+      // Update data hari ini (hanya jika tidak sedang memfilter tanggal lain)
+      if (searchDate == null && month == null) {
+        await fetchCurrentDayAbsensi();
+      }
+      
       _calculateStatistics();
     } catch (e) {
       _errorMessage = 'Gagal mengambil data absensi: ${e.toString()}';
       debugPrint('Error fetchMyAbsensi: $e');
       _myAbsensiList = [];
-      _currentDayAbsensi = null;
     } finally {
       setIsLoading(false);
       _isInitialLoadComplete = true;
@@ -130,7 +141,7 @@ class AbsensiProvider with ChangeNotifier {
     _totalTanpaKet = 0;
 
     for (var absensi in _myAbsensiList) {
-      final status = absensi.status?.toLowerCase() ?? '';
+      final status = absensi.status.toLowerCase() ?? '';
       final tipe = absensi.tipe?.toLowerCase() ?? '';
 
       if (status == 'hadir') _totalHadir++;
@@ -388,6 +399,34 @@ class AbsensiProvider with ChangeNotifier {
     
     return result;
   }
+
+  Future<Map<String, dynamic>> pengajuanTelat({
+  required File fileBukti,
+  required String keterangan,
+  required int absensiId,
+}) async {
+  setIsLoading(true);
+  Map<String, dynamic> result;
+  try {
+    result = await _apiService.pengajuanTelat(
+      fileBukti: fileBukti,
+      keterangan: keterangan,
+      absensiId: absensiId,
+    );
+    if (result['success'] == true) {
+      await fetchMyAbsensi();
+    } else {
+      _errorMessage = result['message'] ?? 'Pengajuan telat gagal.';
+    }
+  } catch (e) {
+    _errorMessage = 'Error pengajuan telat: ${e.toString()}';
+    result = {'success': false, 'message': _errorMessage};
+  } finally {
+    setIsLoading(false);
+    notifyListeners();
+  }
+  return result;
+}
 
   void resetState() {
     _myAbsensiList = [];

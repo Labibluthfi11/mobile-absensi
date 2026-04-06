@@ -32,6 +32,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
   String _tipePengajuan = 'sakit'; // Default: sakit
+  String _jenisCuti = 'cuti_tahunan'; // default
 
   @override
   void initState() {
@@ -209,7 +210,8 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
 
     // Validasi khusus untuk izin
     final isIzinValid = _tipePengajuan == 'sakit' ||
-        (_tipePengajuan == 'izin' && _catatanPanggilanController.text.isNotEmpty);
+    _tipePengajuan == 'cuti' ||
+    (_tipePengajuan == 'izin' && _catatanPanggilanController.text.isNotEmpty);
 
     if (!isIzinValid) {
       _showSnackBar('Harap lengkapi Catatan Kepentingan/Panggilan untuk Izin.');
@@ -257,10 +259,17 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
         // Pengajuan baru
         debugPrint('📤 [FORM] New submission - Tipe: $_tipePengajuan');
         
-        if (_tipePengajuan == 'sakit') {
+                if (_tipePengajuan == 'sakit') {
           result = await absensiProvider.absenSakit(
             fileBukti: _pickedFile!,
             catatan: _catatanController.text,
+          );
+        } else if (_tipePengajuan == 'cuti') {
+          // Cuti dikirim sebagai izin dengan keterangan jenis cuti
+          result = await absensiProvider.absenIzin(
+            fileBukti: _pickedFile!,
+            catatan: '[$_jenisCuti] ${_catatanController.text}',
+            catatanPanggilan: _jenisCuti,
           );
         } else {
           result = await absensiProvider.absenIzin(
@@ -495,8 +504,10 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         Expanded(child: _buildChoiceButton('SAKIT', 'sakit')),
-                        const SizedBox(width: 15),
+                        const SizedBox(width: 10),
                         Expanded(child: _buildChoiceButton('IZIN', 'izin')),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildChoiceButton('CUTI', 'cuti')),
                       ],
                     ),
                     const SizedBox(height: 25),
@@ -516,6 +527,54 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                       },
                     ),
                     const SizedBox(height: 25),
+
+                    // Dropdown jenis cuti (hanya untuk cuti)
+                    if (_tipePengajuan == 'cuti') ...[
+                      const Text(
+                        'Jenis Cuti',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kPrimaryColor),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: _jenisCuti,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: kAccentColor, width: 2.0),
+                          ),
+                          prefixIcon: const Icon(Icons.beach_access_outlined, color: kAccentColor),
+                          labelText: 'Pilih Jenis Cuti',
+                          labelStyle: const TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'cuti_tahunan', child: Text('Cuti Tahunan (12 hari)')),
+                          DropdownMenuItem(value: 'cuti_melahirkan', child: Text('Cuti Melahirkan')),
+                          DropdownMenuItem(value: 'cuti_keguguran', child: Text('Cuti Keguguran')),
+                          DropdownMenuItem(value: 'cuti_haji', child: Text('Cuti Ibadah Haji')),
+                          DropdownMenuItem(value: 'cuti_umroh', child: Text('Cuti Ibadah Umroh')),
+                          DropdownMenuItem(value: 'cuti_haid', child: Text('Cuti Haid (1 hari)')),
+                          DropdownMenuItem(value: 'cuti_menikah', child: Text('Cuti Menikah (3 hari)')),
+                          DropdownMenuItem(value: 'cuti_khitanan', child: Text('Cuti Khitanan Anak (2 hari)')),
+                          DropdownMenuItem(value: 'cuti_baptis', child: Text('Cuti Baptis Anak (2 hari)')),
+                          DropdownMenuItem(value: 'cuti_meninggal', child: Text('Cuti Meninggal Keluarga (2 hari)')),
+                          DropdownMenuItem(value: 'change_off', child: Text('Change Off')),
+                          DropdownMenuItem(value: 'unpaid_leave', child: Text('Unpaid Leave (1 hari)')),
+                        ],
+                        onChanged: (val) {
+                          setState(() {
+                            _jenisCuti = val!;
+                          });
+                        },
+                        validator: (val) {
+                          if (_tipePengajuan == 'cuti' && (val == null || val.isEmpty)) {
+                            return 'Jenis cuti wajib dipilih';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 25),
+                    ],
                     
                     // Catatan Panggilan (hanya untuk Izin)
                     if (_tipePengajuan == 'izin') ...[

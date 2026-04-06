@@ -5,24 +5,22 @@ import 'package:provider/provider.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'dart:async';
 
-// Import services & pages yang dibutuhkan
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
 import '../../pages/notifications_page.dart';
 
-// Import screens lainnya
 import 'attendance_history_screen.dart';
 import 'profile_screen.dart';
 import 'absensi_masuk_screen.dart';
 import 'absensi_pulang_screen.dart';
 import 'absensi_sakit_form_screen.dart';
+import 'absensi_telat_form_screen.dart';
 
-// --- Theme Colors for a Professional, Elegant Look ---
-const Color kPrimaryColor = Color(0xFF1E3A8A); // Darker, more professional Navy/Indigo
-const Color kAccentColor = Color(0xFFFBBF24); // Subtle Gold/Amber for accent
-const Color kSuccessColor = Color(0xFF065F46); // Dark Green
-const Color kWarningColor = Color(0xFFB45309); // Dark Orange/Brown
-const Color kBackgroundColor = Color(0xFFF9FAFB); // Very light grey background
+const Color kPrimaryColor = Color(0xFF1E3A8A);
+const Color kAccentColor = Color(0xFFFBBF24);
+const Color kSuccessColor = Color(0xFF065F46);
+const Color kWarningColor = Color(0xFFB45309);
+const Color kBackgroundColor = Color(0xFFF9FAFB);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -86,10 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
               tabs: const [
                 GButton(icon: Icons.home_rounded, text: 'Beranda'),
                 GButton(icon: Icons.history_rounded, text: 'Riwayat'),
-                GButton(
-                  icon: Icons.local_hospital_rounded,
-                  text: 'Sakit/Izin',
-                ),
+                GButton(icon: Icons.local_hospital_rounded, text: 'Sakit/Izin'),
                 GButton(icon: Icons.person_rounded, text: 'Profil'),
               ],
               selectedIndex: _selectedIndex,
@@ -116,8 +111,6 @@ class HomeContent extends StatefulWidget {
 class _HomeContentState extends State<HomeContent> {
   late String _timeString;
   late Timer _timer;
-
-  // FIX: beri nilai default supaya tidak terjadi LateInitializationError
   Future<int> _unreadCountFuture = Future.value(0);
 
   @override
@@ -126,7 +119,6 @@ class _HomeContentState extends State<HomeContent> {
     Future.microtask(() {
       _loadUnreadCount();
     });
-
     _timeString = _formatTime(DateTime.now());
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -170,29 +162,12 @@ class _HomeContentState extends State<HomeContent> {
 
   String _formatDate(DateTime dateTime) {
     const List<String> hari = [
-      'Senin',
-      'Selasa',
-      'Rabu',
-      'Kamis',
-      'Jumat',
-      'Sabtu',
-      'Minggu',
+      'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
     ];
     const List<String> bulan = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember',
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
     ];
-
     String namaHari = hari[dateTime.weekday - 1];
     String namaBulan = bulan[dateTime.month - 1];
     return '$namaHari, ${dateTime.day} $namaBulan ${dateTime.year}';
@@ -216,7 +191,6 @@ class _HomeContentState extends State<HomeContent> {
         builder: (context) => NotificationsPage(apiService: apiService),
       ),
     );
-    // Setelah kembali dari halaman notifikasi, refresh count
     _loadUnreadCount();
   }
 
@@ -232,7 +206,6 @@ class _HomeContentState extends State<HomeContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- HEADER SECTION ---
             HomeHeader(
               userName: userName,
               timeString: _timeString,
@@ -240,10 +213,7 @@ class _HomeContentState extends State<HomeContent> {
               unreadCountFuture: _unreadCountFuture,
               onNotificationTap: () => _navigateToNotifications(apiService),
             ),
-
             const SizedBox(height: 24),
-
-            // --- QUICK ACTIONS ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Column(
@@ -263,7 +233,7 @@ class _HomeContentState extends State<HomeContent> {
                       Expanded(
                         child: _buildServiceCard(
                           context,
-                          'Absensi Masuk',
+                          'Absensi Masuk',  
                           Icons.arrow_circle_right_rounded,
                           kSuccessColor,
                           () {
@@ -288,18 +258,31 @@ class _HomeContentState extends State<HomeContent> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+
+                  // ✅ TOMBOL PENGAJUAN TELAT
+                  _buildServiceCardWide(
+                    context,
+                    'Pengajuan Keterangan Telat',
+                    Icons.timer_off_rounded,
+                    const Color(0xFF7C3AED),
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AbsensiTelatFormScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // --- INFO BANNER ---
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20.0),
               child: InfoBanner(),
             ),
-
             const SizedBox(height: 30),
           ],
         ),
@@ -347,13 +330,53 @@ class _HomeContentState extends State<HomeContent> {
       ),
     );
   }
+
+  // ✅ TAMBAHAN: Wide card untuk pengajuan telat
+  Widget _buildServiceCardWide(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ----------------------------------------------------------------------
 // SEPARATE WIDGETS
 // ----------------------------------------------------------------------
 
-// ## HomeHeader Widget
 class HomeHeader extends StatelessWidget {
   final String userName;
   final String timeString;
@@ -391,7 +414,6 @@ class HomeHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting and Notification
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -417,7 +439,6 @@ class HomeHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              // Notification Icon DENGAN BADGE & onTap
               InkWell(
                 onTap: onNotificationTap,
                 borderRadius: BorderRadius.circular(12),
@@ -437,7 +458,6 @@ class HomeHeader extends StatelessWidget {
                           size: 26,
                         ),
                       ),
-                      // Badge Angka Notifikasi
                       Positioned(
                         right: 0,
                         top: 0,
@@ -479,7 +499,6 @@ class HomeHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          // Time/Date Card - Premium style
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -518,23 +537,15 @@ class HomeHeader extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Status Badge (Example: Check-in Time)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: kAccentColor,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Row(
                     children: [
-                      Icon(
-                        Icons.schedule_rounded,
-                        color: kPrimaryColor,
-                        size: 18,
-                      ),
+                      Icon(Icons.schedule_rounded, color: kPrimaryColor, size: 18),
                       SizedBox(width: 6),
                       Text(
                         '08:00 WIB',
@@ -556,7 +567,6 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-// ## InfoBanner Widget
 class InfoBanner extends StatelessWidget {
   const InfoBanner({super.key});
 
@@ -585,11 +595,7 @@ class InfoBanner extends StatelessWidget {
               color: kAccentColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.campaign_rounded,
-              color: kAccentColor,
-              size: 24,
-            ),
+            child: const Icon(Icons.campaign_rounded, color: kAccentColor, size: 24),
           ),
           const SizedBox(width: 15),
           const Expanded(
@@ -607,11 +613,7 @@ class InfoBanner extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   'Pastikan Anda berada di lokasi kantor saat melakukan absensi masuk & pulang.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                    height: 1.4,
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
                 ),
               ],
             ),
@@ -622,7 +624,6 @@ class InfoBanner extends StatelessWidget {
   }
 }
 
-// ## PulangOptionsModal Widget
 class PulangOptionsModal extends StatelessWidget {
   const PulangOptionsModal({super.key});
 
@@ -636,10 +637,7 @@ class PulangOptionsModal extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 22),
-      label: Text(
-        text,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
+      label: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,

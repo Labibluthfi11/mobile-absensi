@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
+import 'custom_camera_screen.dart';
 import 'dart:io'; 
 import 'dart:async'; 
 import '../../providers/absensi_provider.dart'; 
@@ -111,7 +111,7 @@ class AbsensiPulangScreen extends StatefulWidget {
 }
 
 class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
-  final ImagePicker _picker = ImagePicker();
+  
   
   // State Utama
   File? _capturedImageFile;
@@ -246,50 +246,24 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
 
   // Method: Hanya mengambil foto dan update state
   Future<void> _takePhoto() async {
-    final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
+  final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
+  if (absensiProvider.isLoading) return;
 
-    if (absensiProvider.isLoading) return;
+  final File? result = await Navigator.push<File>(
+    context,
+    MaterialPageRoute(builder: (_) => const CustomCameraScreen()),
+  );
 
-    try {
-      absensiProvider.setIsLoading(true); 
-      absensiProvider.setErrorMessage(null);
+  if (result != null && mounted) {
+    // Ambil lokasi terbaru setelah foto diambil
+    await _checkLocation();
 
-      final XFile? capturedImage = await _picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        imageQuality: 70,
-        maxWidth: 800,
-      );
-
-      if (capturedImage == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Pengambilan foto dibatalkan.'),
-              backgroundColor: kSecondaryColor,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-        return;
-      }
-      
-      // Ambil lokasi lagi untuk memastikan posisi terbaru sebelum submit
-      await _checkLocation();
-
-      if (mounted) {
-        setState(() {
-          _capturedImageFile = File(capturedImage.path);
-          _isPhotoTaken = true; 
-        });
-      }
-
-    } catch (e) {
-      absensiProvider.setErrorMessage('Gagal mengambil foto: ${e.toString()}');
-    } finally {
-      absensiProvider.setIsLoading(false);
-    }
+    setState(() {
+      _capturedImageFile = result;
+      _isPhotoTaken = true;
+    });
   }
+}
 
   // Fungsi untuk 'Ulangi Foto'
   void _retakePicture() {
@@ -384,7 +358,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_outline, color: kSuccessColor, size: 60),
+              const Icon(Icons.check_circle_outline, color: kSuccessColor, size: 60),
               const SizedBox(height: 15),
               Text(
                 'Absensi $_tipeAbsensiUI Berhasil Dicatat!',
@@ -430,7 +404,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            colorScheme: ColorScheme.light(
+            colorScheme: const ColorScheme.light(
               primary: kPrimaryColor, 
               onPrimary: Colors.white, 
               surface: Colors.white, 
@@ -595,11 +569,11 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          const Text(
             'Verifikasi Pulang',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kPrimaryColor),
           ),
-          Divider(height: 25, thickness: 1, color: Color(0xFFE0E0E0)),
+          const Divider(height: 25, thickness: 1, color: Color(0xFFE0E0E0)),
           
           // Kotak Preview Gambar
           Container(
@@ -688,10 +662,10 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.hourglass_bottom, color: kLemburColor, size: 24),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Text(
                 'Detail Lembur (Wajib Diisi)',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kLemburColor),
@@ -802,7 +776,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
         elevation: 8,
       ),
       child: absensiProvider.isLoading
-          ? BouncingDotsLoader(dotColor: Colors.white)
+          ? const BouncingDotsLoader(dotColor: Colors.white)
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -857,7 +831,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
             onTap: onRefresh,
             child: Container(
               padding: const EdgeInsets.all(5),
-              child: Icon(Icons.refresh, color: kSecondaryColor, size: 22),
+              child: const Icon(Icons.refresh, color: kSecondaryColor, size: 22),
             ),
           )
       ],

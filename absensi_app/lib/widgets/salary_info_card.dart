@@ -4,7 +4,7 @@ import 'package:absensi_app/models/absensi_model.dart';
 class SalaryInfoCard extends StatelessWidget {
   final Absensi absensi;
 
-  const SalaryInfoCard({Key? key, required this.absensi}) : super(key: key);
+  const SalaryInfoCard({super.key, required this.absensi});
 
   @override
   Widget build(BuildContext context) {

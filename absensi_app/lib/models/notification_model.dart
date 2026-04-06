@@ -26,19 +26,20 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    return NotificationModel(
-      id: json['id'] as int,
-      title: json['title'] as String,
-      message: json['message'] as String,
-      type: json['type'] as String,
-      
-      // Parsing target_page dan target_id (bisa null)
-      targetPage: json['target_page'] as String?, 
-      targetId: json['target_id'] as int?, 
+  return NotificationModel(
+    id: json['id'] as int,
+    title: json['title'] as String,
+    message: json['message'] as String,
+    type: json['type'] as String,
+    targetPage: json['target_page'] as String?,
+    
+    // ✅ FIX: handle kalau target_id dikirim sebagai String dari backend
+    targetId: json['target_id'] != null
+        ? int.tryParse(json['target_id'].toString())
+        : null,
 
-      // isRead di JSON adalah Integer 0 atau 1. Di Dart kita konversi ke boolean.
-      isRead: json['is_read'] == 1, 
-      createdAt: DateTime.parse(json['created_at']),
-    );
-  }
+    isRead: json['is_read'] == 1,
+    createdAt: DateTime.parse(json['created_at']),
+  );
+}
 }

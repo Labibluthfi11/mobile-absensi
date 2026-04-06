@@ -47,7 +47,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   }
 
   void _navigateToTargetPage(NotificationModel notif) {
-    final type = notif.type?.toLowerCase() ?? '';
+    final type = notif.type.toLowerCase() ?? '';
     final targetId = notif.targetId;
 
     print('🔍 Debug Navigation:');
@@ -217,10 +217,10 @@ class _NotificationsPageState extends State<NotificationsPage>
                 borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(20)),
               ),
-              child: FlexibleSpaceBar(
+              child: const FlexibleSpaceBar(
                 centerTitle: false,
-                titlePadding: const EdgeInsets.only(left: 24, bottom: 20),
-                title: const Text(
+                titlePadding: EdgeInsets.only(left: 24, bottom: 20),
+                title: Text(
                   'Inbox & Notifikasi',
                   style: TextStyle(
                     color: Colors.white,
@@ -259,7 +259,7 @@ class _NotificationsPageState extends State<NotificationsPage>
               future: _notificationsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return SliverFillRemaining(
+                  return const SliverFillRemaining(
                     child: Center(
                       child: CircularProgressIndicator(
                         valueColor:

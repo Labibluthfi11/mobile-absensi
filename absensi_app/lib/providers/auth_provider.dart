@@ -126,7 +126,8 @@ class AuthProvider extends ChangeNotifier {
     required String passwordConfirmation,
     required String idKaryawan, 
     required String departemen, 
-    required String employmentType, // PARAMETER BARU DITAMBAHKAN
+    required String employmentType,
+    required String workLocation, 
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -140,7 +141,8 @@ class AuthProvider extends ChangeNotifier {
         passwordConfirmation: passwordConfirmation,
         idKaryawan: idKaryawan, 
         departemen: departemen, 
-        employmentType: employmentType, // PARAMETER BARU DITERUSKAN
+        employmentType: employmentType, 
+        workLocation: workLocation,
       );
 
       final String? accessToken = result['access_token'];
