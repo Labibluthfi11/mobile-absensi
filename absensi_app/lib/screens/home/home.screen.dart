@@ -118,6 +118,7 @@ class _HomeContentState extends State<HomeContent> {
     super.initState();
     Future.microtask(() {
       _loadUnreadCount();
+      _refreshData();
     });
     _timeString = _formatTime(DateTime.now());
     _timer = Timer.periodic(
@@ -137,6 +138,18 @@ class _HomeContentState extends State<HomeContent> {
       setState(() {
         _unreadCountFuture = Future.value(0);
       });
+    }
+  }
+
+  // TARUH DI BAWAH _loadUnreadCount()
+  Future<void> _refreshData() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      // Panggil fungsi refresh di provider (pastikan sudah buat refreshProfile di AuthProvider)
+      await authProvider.refreshProfile(); 
+      _loadUnreadCount(); // Update angka notif sekalian
+    } catch (e) {
+      print('Gagal refresh data: $e');
     }
   }
 
@@ -201,8 +214,14 @@ class _HomeContentState extends State<HomeContent> {
     final userName = authProvider.user?.name ?? 'Pengguna';
 
     return SafeArea(
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+      child: RefreshIndicator( // <--- PASANG DI SINI (SETELAH SafeArea)
+        onRefresh: _refreshData, // Panggil fungsi refresh saat ditarik
+        color: kPrimaryColor,
+        child: SingleChildScrollView(
+          // PENTING: Ganti physics agar selalu bisa ditarik ke bawah
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -260,6 +279,136 @@ class _HomeContentState extends State<HomeContent> {
                   ),
                   const SizedBox(height: 16),
 
+                  // ✅ WIDGET SISA CUTI (hanya organik)
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      final user = auth.user;
+                      if (user == null || user.employmentType != 'organik') {
+                        return const SizedBox.shrink();
+                      }
+
+                      final sisaCuti = user.sisaCuti ?? 12;
+                      final totalDiambil = user.totalCutiDiambil ?? 0;
+                      final tahun = user.tahunCuti ?? DateTime.now().year;
+                      final progressValue = (totalDiambil / 12).clamp(0.0, 1.0);
+
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF152C5C), Color(0xFF1E4D8C)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF152C5C).withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // Icon
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.beach_access_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+
+                            // Info sisa cuti
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Sisa Cuti Tahunan $tahun',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '$sisaCuti',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Text(
+                                        ' / 12 hari',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Progress & terpakai
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'Terpakai',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                Text(
+                                  '$totalDiambil hari',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: 80,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: progressValue,
+                                      backgroundColor: Colors.white24,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        sisaCuti <= 3
+                                            ? Colors.red.shade300
+                                            : Colors.greenAccent,
+                                      ),
+                                      minHeight: 6,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
                   // ✅ TOMBOL PENGAJUAN TELAT
                   _buildServiceCardWide(
                     context,
@@ -286,6 +435,7 @@ class _HomeContentState extends State<HomeContent> {
             const SizedBox(height: 30),
           ],
         ),
+      ),
       ),
     );
   }
@@ -414,37 +564,49 @@ class HomeHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ✅ Row atas: nama user + notifikasi
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Selamat Datang, $userName',
-                    style: TextStyle(
-                      color: kPrimaryColor.withOpacity(0.8),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+              // ✅ Expanded biar ga overflow
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Selamat Datang, $userName',
+                      style: TextStyle(
+                        color: kPrimaryColor.withOpacity(0.8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Portal Absensi Harian',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Portal Absensi Harian',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
+              // ✅ Tombol notifikasi
               InkWell(
                 onTap: onNotificationTap,
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(4.0),
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(10),
@@ -467,24 +629,23 @@ class HomeHeader extends StatelessWidget {
                             final count = snapshot.data ?? 0;
                             if (count > 0) {
                               return Container(
-                                padding: const EdgeInsets.all(4),
+                                width: 18,
+                                height: 18,
                                 decoration: BoxDecoration(
                                   color: Colors.red,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(color: Colors.white, width: 1.5),
                                 ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 20,
-                                  minHeight: 20,
-                                ),
-                                child: Text(
-                                  count > 9 ? '9+' : '$count',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
+                                child: Center(
+                                  child: Text(
+                                    count > 9 ? '9+' : '$count',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1,
+                                    ),
                                   ),
-                                  textAlign: TextAlign.center,
                                 ),
                               );
                             }
@@ -499,6 +660,7 @@ class HomeHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+          // ✅ Clock card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

@@ -38,14 +38,20 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     super.dispose();
   }
 
-  Future<void> _refreshData() async {
-    final provider = Provider.of<AbsensiProvider>(context, listen: false);
-    provider.fetchMyAbsensi(
-      searchDate: _selectedDate != null ? DateFormat('yyyy-MM-dd').format(_selectedDate!) : null,
-      month: _selectedMonth,
-      year: _selectedYear,
-    );
-  }
+  // DI FILE attendance_history_screen.dart
+
+Future<void> _refreshData() async {
+  final provider = Provider.of<AbsensiProvider>(context, listen: false);
+  
+  await provider.fetchMyAbsensi(
+    searchDate: null, // Paksa null buat ngetes
+    month: null,      // Paksa null buat ngetes
+    year: null,       // Paksa null buat ngetes
+  );
+  
+  if (!mounted) return;
+  setState(() {}); 
+}
 
   Future<void> _pickDate() async {
     DateTime? picked = await showDatePicker(
@@ -77,34 +83,29 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     return {'hadir': totalHadir, 'telat': totalTelat};
   }
 
-  // ✅ TAMBAHAN: getter filtered list
+  // ✅ UPDATE: Jangan pake listen: false di sini, biar dia otomatis refresh
   List<Absensi> get _filteredList {
-    final provider = Provider.of<AbsensiProvider>(context, listen: false);
-    final list = provider.myAbsensiList;
+    final list = Provider.of<AbsensiProvider>(context).myAbsensiList;
 
     if (_searchQuery.isEmpty) return list;
 
     final query = _searchQuery.toLowerCase().trim();
 
     return list.where((absensi) {
-      final checkInDate = absensi.checkInAt != null
-          ? DateTime.parse(absensi.checkInAt!).toLocal()
-          : null;
+      // ✅ PERBAIKAN: Jangan langsung return false kalau checkInAt null
+      // Kita coba ambil tanggal dari checkInAt, kalau kosong ambil dari createdAt
+      final dateString = absensi.checkInAt ?? absensi.createdAt;
+      
+      if (dateString == null) return false; // Kalau dua-duanya null baru buang
+      
+      final dateValue = DateTime.parse(dateString).toLocal();
 
-      final tanggalFormatted = checkInDate != null
-          ? DateFormat('dd-MM-yyyy').format(checkInDate).toLowerCase()
-          : '';
+      final tanggalFormatted = DateFormat('dd-MM-yyyy').format(dateValue).toLowerCase();
+      final namaHari = DateFormat('EEEE', 'id_ID').format(dateValue).toLowerCase();
+      final namaBulan = DateFormat('MMMM', 'id_ID').format(dateValue).toLowerCase();
 
-      final namaHari = checkInDate != null
-          ? DateFormat('EEEE', 'id_ID').format(checkInDate).toLowerCase()
-          : '';
-
-      final namaBulan = checkInDate != null
-          ? DateFormat('MMMM', 'id_ID').format(checkInDate).toLowerCase()
-          : '';
-
-      final status = absensi.status.toLowerCase() ?? '';
-      final tipe = absensi.tipe?.toLowerCase() ?? '';
+      final status = (absensi.status).toLowerCase();
+      final tipe = (absensi.tipe ?? '').toLowerCase();
 
       return tanggalFormatted.contains(query) ||
           namaHari.contains(query) ||
@@ -374,12 +375,18 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         : '--:--';
 
     final Color statusColor = _getStatusColor(status);
-    final bool isLeaveRecord = status?.toLowerCase() == 'sakit' || status?.toLowerCase() == 'izin';
+        final bool isLeaveRecord = status.toLowerCase() == 'sakit' || 
+                               status.toLowerCase() == 'izin';
 
-    String displayedStatusText = (status ?? 'N/A').toUpperCase();
+    
+    final bool needsApprovalDisplay = isLeaveRecord || 
+                                       absensi.tipe == 'lembur' || 
+                                       absensi.tipe == 'telat';
+
+    String displayedStatusText = status.toUpperCase();
     Color displayedStatusColor = statusColor;
 
-    if (isLeaveRecord || (absensi.workflowStatus != null && absensi.workflowStatus!.isNotEmpty)) {
+    if (needsApprovalDisplay) {
       final String approval = statusApproval?.toLowerCase() ?? 'pending';
       if (approval == 'pending' || approval == 'menunggu' || approval == 'waiting') {
         displayedStatusText = 'MENUNGGU APPROVAL';
@@ -510,7 +517,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                   const SizedBox(height: 12),
                   _buildTimeDetail(Icons.access_time_rounded, 'WAKTU PENGAJUAN', jamMasuk, displayedStatusColor.withOpacity(0.9)),
                   const SizedBox(height: 12),
-                  if (absensi.workflowStatus != null && absensi.workflowStatus!.isNotEmpty)
+                  if (needsApprovalDisplay && absensi.workflowStatus != null && absensi.workflowStatus!.isNotEmpty)
                     _buildWorkflowWidget(absensi),
                 ],
               )
@@ -526,7 +533,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (absensi.workflowStatus != null && absensi.workflowStatus!.isNotEmpty)
+                  if (needsApprovalDisplay && absensi.workflowStatus != null && absensi.workflowStatus!.isNotEmpty)
                     _buildWorkflowWidget(absensi),
                 ],
               ),

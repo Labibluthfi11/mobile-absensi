@@ -180,6 +180,26 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Di dalam class AuthProvider
+  Future<void> refreshProfile() async {
+    try {
+      // SESUAIKAN: Pakai nama fungsi yang ada di ApiService kamu
+      final User? updatedUser = await _apiService.getAuthenticatedUser(); 
+      
+      if (updatedUser != null) {
+        _user = updatedUser;
+        
+        // Simpan ke SharedPreferences supaya data lokal tetap fresh
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
+        
+        notifyListeners(); // Update tampilan UI
+      }
+    } catch (e) {
+      print('Gagal refresh profile: $e');
+    }
+  }
+
   Future<void> logout() async {
     _isLoading = true;
     _errorMessage = null;

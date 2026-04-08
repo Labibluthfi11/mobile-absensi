@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'custom_camera_screen.dart';
 import 'dart:io'; 
 import 'dart:async'; 
@@ -115,6 +116,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   
   // State Utama
   File? _capturedImageFile;
+  List<File> _hasilKerjaFiles = [];
   bool _isPhotoTaken = false; 
   Position? _currentPosition;
   
@@ -265,6 +267,27 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   }
 }
 
+  Future<void> _pickHasilKerjaImages() async {
+    final ImagePicker picker = ImagePicker();
+    
+    // Pick multiple images
+    final List<XFile> pickedFiles = await picker.pickMultiImage();
+
+    if (pickedFiles.isNotEmpty && mounted) {
+      // Cek limit maksimal 5
+      if (pickedFiles.length > 5) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maksimal 5 foto ya Bib!')),
+        );
+        return;
+      }
+
+      setState(() {
+        _hasilKerjaFiles = pickedFiles.map((xFile) => File(xFile.path)).toList();
+      });
+    }
+  }
+
   // Fungsi untuk 'Ulangi Foto'
   void _retakePicture() {
     setState(() {
@@ -279,6 +302,15 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   Future<void> _submitAbsen() async {
     final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
 
+    if (widget.lembur == true && _hasilKerjaFiles.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Wajib upload minimal 1 foto bukti kerja!'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return; // Berhenti di sini, jangan lanjut ke proses kirim API
+  }
     if (absensiProvider.isLoading) return;
     
     // 1. Validasi Pra-Submit
@@ -293,7 +325,8 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     if (widget.lembur == true) {
       final isLemburFormValid = _keteranganController.text.trim().isNotEmpty &&
                                 _jamMulaiController.text.trim().isNotEmpty &&
-                                _jamSelesaiController.text.trim().isNotEmpty;
+                                _jamSelesaiController.text.trim().isNotEmpty &&
+                                _hasilKerjaFiles.isNotEmpty; 
                                 
       if (!isLemburFormValid) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -644,7 +677,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     );
   }
 
-  Widget _buildLemburFormCard(AbsensiProvider absensiProvider) {
+ Widget _buildLemburFormCard(AbsensiProvider absensiProvider) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -729,13 +762,78 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
           TextFormField(
             controller: _keteranganController,
             maxLines: 4,
-            decoration: _buildInputDecoration('Keterangan Lembur (Tugas yang Dikerjakan)', kLemburColor),
+            decoration: _buildInputDecoration('Jelasin Lu lembur apaan', kLemburColor),
             enabled: !absensiProvider.isLoading,
           ),
+
+          // ✅ TAMBAH MULAI DARI SINI SAMPAI BAWAH (Setelah TextFormField Keterangan)
+          const SizedBox(height: 20),
+          const Text(
+            'Upload Bukti Kerja (Minimal 1, Maksimal 5)',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+          ),
+          const SizedBox(height: 10),
+          
+          InkWell(
+            onTap: _pickHasilKerjaImages, // Panggil fungsi galeri tadi
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 100),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _hasilKerjaFiles.isNotEmpty ? Colors.green : Colors.grey.shade300,
+                  width: 2,
+                ),
+              ),
+              child: _hasilKerjaFiles.isEmpty
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.drive_folder_upload, size: 40, color: Colors.grey.shade400),
+                        const Text('Pilih Foto dari Galeri', style: TextStyle(color: Colors.grey)),
+                      ],
+                    )
+                  : GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3, 
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemCount: _hasilKerjaFiles.length,
+                      itemBuilder: (context, index) {
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(_hasilKerjaFiles[index], fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                            ),
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() => _hasilKerjaFiles.removeAt(index));
+                                },
+                                child: Container(
+                                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+          ),
+
         ],
-      ),
-    );
-  }
+      ),    );         
+}
 
   InputDecoration _buildInputDecoration(String label, Color color, [IconData? icon]) {
     return InputDecoration(

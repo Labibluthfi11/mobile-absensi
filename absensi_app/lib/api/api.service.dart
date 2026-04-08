@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:intl/intl.dart';
 
 import '../core/constants/api_constants.dart';
 import '../models/user_model.dart';
@@ -452,14 +453,19 @@ Future<Map<String, dynamic>> resetPassword({
     required File fileBukti,
     required String catatan,
     required String catatanPanggilan,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     try {
       String fileName = fileBukti.path.split('/').last;
       FormData formData = FormData.fromMap({
         'file_bukti': await MultipartFile.fromFile(fileBukti.path, filename: fileName),
-        'catatan': catatan,
-        'catatan_panggilan': catatanPanggilan,
-        'tipe': 'izin',
+        'keterangan_izin_sakit': catatan,      // ✅ fix
+        'catatan_admin': catatanPanggilan,      // ✅ fix
+        'status': 'izin',                       // ✅ tambah status
+        'submission_type': catatanPanggilan,    // ✅ simpan jenis cuti
+        if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
+        if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
 
       final response = await _dio.post('/absensi/izin', data: formData);

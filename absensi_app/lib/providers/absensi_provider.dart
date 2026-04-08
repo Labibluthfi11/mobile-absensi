@@ -276,6 +276,8 @@ class AbsensiProvider with ChangeNotifier {
     required File fileBukti,
     required String catatan,
     required String catatanPanggilan,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
@@ -284,6 +286,8 @@ class AbsensiProvider with ChangeNotifier {
         fileBukti: fileBukti,
         catatan: catatan,
         catatanPanggilan: catatanPanggilan,
+        startDate: startDate,
+        endDate: endDate,
       );
       if (result['success'] == true) {
         await fetchMyAbsensi();

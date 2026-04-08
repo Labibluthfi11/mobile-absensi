@@ -4,13 +4,15 @@ class User {
   final int id;
   final String name;
   final String email;
-  // ✅ TIDAK nullable di model, tapi bisa null dari API
-  final String idKaryawan; 
+  final String idKaryawan;
   final String departemen;
-  final String employmentType; 
-  final String? profilePhotoUrl; 
-  // ✅ Menambahkan profilePhotoPath jika Anda menggunakannya (Opsional, jika ada di backend)
-  final String? profilePhotoPath; 
+  final String employmentType;
+  final String? profilePhotoUrl;
+  final String? profilePhotoPath;
+  // ✅ Data cuti (hanya untuk organik, null untuk freelance)
+  final int? sisaCuti;
+  final int? totalCutiDiambil;
+  final int? tahunCuti;
 
   User({
     required this.id,
@@ -20,24 +22,32 @@ class User {
     required this.departemen,
     required this.employmentType,
     this.profilePhotoUrl,
-    this.profilePhotoPath, // Tambahkan jika perlu
+    this.profilePhotoPath,
+    this.sisaCuti,
+    this.totalCutiDiambil,
+    this.tahunCuti,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
-    // KRITIS: Menggunakan ?? untuk memastikan String tidak null.
-    // Ini memperbaiki error 'type 'Null' is not a subtype of type 'String''
     return User(
       id: json['id'] as int,
       name: json['name'] as String? ?? 'N/A',
       email: json['email'] as String? ?? 'user@example.com',
-      // Jika nilai null, gunakan 'N/A' atau '0'
-      idKaryawan: json['id_karyawan'] as String? ?? 'N/A', 
-      departemen: json['departemen'] as String? ?? 'N/A', 
-      employmentType: json['employment_type'] as String? ?? 'Unknown', 
-      
-      // Properti yang boleh null tetap menggunakan String?
+      idKaryawan: json['id_karyawan'] as String? ?? 'N/A',
+      departemen: json['departemen'] as String? ?? 'N/A',
+      employmentType: json['employment_type'] as String? ?? 'Unknown',
       profilePhotoUrl: json['profile_photo_url'] as String?,
       profilePhotoPath: json['profile_photo_path'] as String?,
+      // ✅ Safe parsing — handle String atau int dari API
+      sisaCuti: json['sisa_cuti'] != null 
+    ? (int.tryParse(json['sisa_cuti'].toString()) ?? 12) // Kalau gagal parse jadi 12
+    : 12, // Kalau emang dari sananya NULL, kasih jatah default 12
+      totalCutiDiambil: json['total_cuti_diambil'] != null 
+          ? int.tryParse(json['total_cuti_diambil'].toString()) 
+          : null,
+      tahunCuti: json['tahun_cuti'] != null 
+          ? int.tryParse(json['tahun_cuti'].toString()) 
+          : null,
     );
   }
 
@@ -51,6 +61,9 @@ class User {
       'employment_type': employmentType,
       'profile_photo_url': profilePhotoUrl,
       'profile_photo_path': profilePhotoPath,
+      'sisa_cuti': sisaCuti,
+      'total_cuti_diambil': totalCutiDiambil,
+      'tahun_cuti': tahunCuti,
     };
   }
 }
