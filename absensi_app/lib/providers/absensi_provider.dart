@@ -221,6 +221,8 @@ class AbsensiProvider with ChangeNotifier {
     required String jamSelesai,
     required bool istirahat,
     required String keterangan,
+    required String goals,
+    required List<File> hasilKerjaFiles,
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
@@ -233,6 +235,8 @@ class AbsensiProvider with ChangeNotifier {
         jamSelesai: jamSelesai,
         istirahat: istirahat,
         keterangan: keterangan,
+        goals: goals,
+        hasilKerjaFiles: hasilKerjaFiles,
       );
       if (result['success'] == true) {
         await fetchMyAbsensi();

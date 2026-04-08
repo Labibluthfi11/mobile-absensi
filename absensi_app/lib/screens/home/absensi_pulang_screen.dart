@@ -122,6 +122,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   
   // --- KONTROLER LEMBUR ---
   final TextEditingController _keteranganController = TextEditingController(); 
+  final TextEditingController _goalsController = TextEditingController(); 
   final TextEditingController _jamMulaiController = TextEditingController(); 
   final TextEditingController _jamSelesaiController = TextEditingController(); 
   bool _istirahatChecked = false; 
@@ -158,6 +159,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   void dispose() {
     _timer.cancel();
     _keteranganController.dispose();
+    _goalsController.dispose();
     _jamMulaiController.dispose(); 
     _jamSelesaiController.dispose(); 
     super.dispose();
@@ -353,6 +355,8 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
           jamSelesai: _jamSelesaiController.text.trim(),
           istirahat: _istirahatChecked,
           keterangan: _keteranganController.text.trim(),
+          goals: _goalsController.text.trim(),
+          hasilKerjaFiles: _hasilKerjaFiles,
         );
       } else {
         // PANGGIL ABSEN PULANG NORMAL
@@ -476,8 +480,10 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     bool isLemburFormValid = true;
     if (isLembur && _isPhotoTaken) {
       isLemburFormValid = _keteranganController.text.trim().isNotEmpty &&
+                          _goalsController.text.trim().isNotEmpty &&
                           _jamMulaiController.text.trim().isNotEmpty &&
-                          _jamSelesaiController.text.trim().isNotEmpty;
+                          _jamSelesaiController.text.trim().isNotEmpty &&
+                          _hasilKerjaFiles.isNotEmpty;
     }
     
     final bool canSubmit = _isPhotoTaken && locationReady && isLemburFormValid;
@@ -763,6 +769,16 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
             controller: _keteranganController,
             maxLines: 4,
             decoration: _buildInputDecoration('Jelasin Lu lembur apaan', kLemburColor),
+            enabled: !absensiProvider.isLoading,
+          ),
+
+          const SizedBox(height: 15),
+
+          // Goals Pekerjaan
+          TextFormField(
+            controller: _goalsController,
+            maxLines: 2,
+            decoration: _buildInputDecoration('Goals lembur (contoh: packing parfum 1000 botol)', kLemburColor),
             enabled: !absensiProvider.isLoading,
           ),
 

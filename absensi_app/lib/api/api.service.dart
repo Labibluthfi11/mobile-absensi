@@ -369,6 +369,8 @@ Future<Map<String, dynamic>> resetPassword({
     required String jamSelesai,
     required bool istirahat,
     required String keterangan,
+    required String goals,
+    required List<File> hasilKerjaFiles,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -380,7 +382,16 @@ Future<Map<String, dynamic>> resetPassword({
         'jam_selesai': jamSelesai,
         'istirahat': istirahat ? '1' : '0',
         'keterangan': keterangan,
+        'goals': goals,
       });
+
+      for (int i = 0; i < hasilKerjaFiles.length; i++) {
+        String hFileName = hasilKerjaFiles[i].path.split('/').last;
+        formData.files.add(MapEntry(
+          'hasil_kerja[]', 
+          await MultipartFile.fromFile(hasilKerjaFiles[i].path, filename: hFileName)
+        ));
+      }
 
       final response = await _dio.post('/absensi/lembur', data: formData);
       if (response.data != null && response.data['data'] != null) {
