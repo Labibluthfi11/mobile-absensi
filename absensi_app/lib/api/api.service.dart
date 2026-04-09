@@ -382,14 +382,46 @@ Future<Map<String, dynamic>> resetPassword({
         'jam_selesai': jamSelesai,
         'istirahat': istirahat ? '1' : '0',
         'keterangan': keterangan,
-        'goals': goals,
+        'keterangan_goals': goals,
       });
 
-      for (int i = 0; i < hasilKerjaFiles.length; i++) {
-        String hFileName = hasilKerjaFiles[i].path.split('/').last;
+      if (hasilKerjaFiles.isNotEmpty) {
+        String hFileName2 = hasilKerjaFiles[0].path.split('/').last;
         formData.files.add(MapEntry(
-          'hasil_kerja[]', 
-          await MultipartFile.fromFile(hasilKerjaFiles[i].path, filename: hFileName)
+          'foto_2',
+          await MultipartFile.fromFile(hasilKerjaFiles[0].path, filename: hFileName2)
+        ));
+      }
+
+      if (hasilKerjaFiles.length > 1) {
+        String hFileName3 = hasilKerjaFiles[1].path.split('/').last;
+        formData.files.add(MapEntry(
+          'foto_3',
+          await MultipartFile.fromFile(hasilKerjaFiles[1].path, filename: hFileName3)
+        ));
+      }
+
+      if (hasilKerjaFiles.length > 2) {
+        String hFileName4 = hasilKerjaFiles[2].path.split('/').last;
+        formData.files.add(MapEntry(
+          'foto_4',
+          await MultipartFile.fromFile(hasilKerjaFiles[2].path, filename: hFileName4)
+        ));
+      }
+
+      if (hasilKerjaFiles.length > 3) {
+        String hFileName5 = hasilKerjaFiles[3].path.split('/').last;
+        formData.files.add(MapEntry(
+          'foto_5',
+          await MultipartFile.fromFile(hasilKerjaFiles[3].path, filename: hFileName5)
+        ));
+      }
+
+      if (hasilKerjaFiles.length > 4) {
+        String hFileName6 = hasilKerjaFiles[4].path.split('/').last;
+        formData.files.add(MapEntry(
+          'foto_6',
+          await MultipartFile.fromFile(hasilKerjaFiles[4].path, filename: hFileName6)
         ));
       }
 
