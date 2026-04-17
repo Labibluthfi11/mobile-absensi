@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'dart:async';
+import 'dart:ui';
 
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
@@ -15,12 +16,15 @@ import 'absensi_masuk_screen.dart';
 import 'absensi_pulang_screen.dart';
 import 'absensi_sakit_form_screen.dart';
 import 'absensi_telat_form_screen.dart';
+import 'jadwal_lembur_screen.dart';
+import 'absensi_lembur_screen.dart';
+import 'start_izin_screen.dart';
+import 'end_izin_screen.dart';
+import '../../providers/absensi_provider.dart';
+import '../../providers/izin_keluar_provider.dart';
 
-const Color kPrimaryColor = Color(0xFF1E3A8A);
-const Color kAccentColor = Color(0xFFFBBF24);
-const Color kSuccessColor = Color(0xFF065F46);
-const Color kWarningColor = Color(0xFFB45309);
-const Color kBackgroundColor = Color(0xFFF9FAFB);
+const Color kPrimaryColor    = Color(0xFF4F46E5); 
+const Color kBackgroundColor = Color(0xFFF3F4F6); 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,41 +54,40 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     if (!authProvider.isAuthenticated) {
-      Future.microtask(
-        () => Navigator.of(context).pushReplacementNamed('/login'),
-      );
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      Future.microtask(() => Navigator.of(context).pushReplacementNamed('/login'));
+      return Scaffold(body: Center(child: CircularProgressIndicator(color: kPrimaryColor)));
     }
 
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
+      body: _widgetOptions.elementAt(_selectedIndex),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(30),
+            topRight: Radius.circular(30),
+          ),
           boxShadow: [
-            BoxShadow(
-              blurRadius: 10,
-              color: Colors.black.withOpacity(0.05),
-              offset: const Offset(0, -4),
-            ),
+            BoxShadow(blurRadius: 20, color: Colors.black.withOpacity(0.06), offset: const Offset(0, -5))
           ],
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
             child: GNav(
               gap: 8,
-              activeColor: Colors.white,
-              iconSize: 24,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              activeColor: kPrimaryColor,
+              iconSize: 26,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               duration: const Duration(milliseconds: 300),
-              tabBackgroundColor: kPrimaryColor,
-              color: Colors.grey[600],
+              tabBackgroundColor: kPrimaryColor.withOpacity(0.12),
+              color: Colors.grey.shade400,
+              textStyle: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, color: kPrimaryColor, fontSize: 13),
               tabs: const [
-                GButton(icon: Icons.home_rounded, text: 'Beranda'),
-                GButton(icon: Icons.history_rounded, text: 'Riwayat'),
-                GButton(icon: Icons.local_hospital_rounded, text: 'Sakit/Izin'),
+                GButton(icon: Icons.dashboard_rounded, text: 'Home'),
+                GButton(icon: Icons.receipt_long_rounded, text: 'Riwayat'),
+                GButton(icon: Icons.sick_rounded, text: 'Sakit/Izin'),
                 GButton(icon: Icons.person_rounded, text: 'Profil'),
               ],
               selectedIndex: _selectedIndex,
@@ -116,15 +119,12 @@ class _HomeContentState extends State<HomeContent> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
+    _timeString = _formatTime(DateTime.now());
+    _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _getTime());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadUnreadCount();
       _refreshData();
     });
-    _timeString = _formatTime(DateTime.now());
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (Timer t) => _getTime(),
-    );
   }
 
   void _loadUnreadCount() {
@@ -134,23 +134,16 @@ class _HomeContentState extends State<HomeContent> {
         _unreadCountFuture = apiService.fetchUnreadCount();
       });
     } catch (e) {
-      print('Error accessing ApiService: $e');
-      setState(() {
-        _unreadCountFuture = Future.value(0);
-      });
+      setState(() => _unreadCountFuture = Future.value(0));
     }
   }
 
-  // TARUH DI BAWAH _loadUnreadCount()
   Future<void> _refreshData() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      // Panggil fungsi refresh di provider (pastikan sudah buat refreshProfile di AuthProvider)
       await authProvider.refreshProfile(); 
-      _loadUnreadCount(); // Update angka notif sekalian
-    } catch (e) {
-      print('Gagal refresh data: $e');
-    }
+      _loadUnreadCount(); 
+    } catch (e) {}
   }
 
   @override
@@ -161,49 +154,20 @@ class _HomeContentState extends State<HomeContent> {
 
   void _getTime() {
     final DateTime now = DateTime.now();
-    final String formattedDateTime = _formatTime(now);
-    if (mounted) {
-      setState(() {
-        _timeString = formattedDateTime;
-      });
-    }
+    if (mounted) setState(() => _timeString = _formatTime(now));
   }
 
-  String _formatTime(DateTime dateTime) {
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+  String _formatTime(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
+
+  String _formatDate(DateTime d) {
+    const hari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+    const bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+    return '${hari[d.weekday - 1]}, ${d.day} ${bulan[d.month - 1]} ${d.year}';
   }
 
-  String _formatDate(DateTime dateTime) {
-    const List<String> hari = [
-      'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
-    ];
-    const List<String> bulan = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-    ];
-    String namaHari = hari[dateTime.weekday - 1];
-    String namaBulan = bulan[dateTime.month - 1];
-    return '$namaHari, ${dateTime.day} $namaBulan ${dateTime.year}';
-  }
-
-  void _showLemburOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return const PulangOptionsModal();
-      },
-    );
-  }
 
   void _navigateToNotifications(ApiService apiService) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => NotificationsPage(apiService: apiService),
-      ),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(apiService: apiService)));
     _loadUnreadCount();
   }
 
@@ -211,518 +175,373 @@ class _HomeContentState extends State<HomeContent> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final apiService = Provider.of<ApiService>(context);
-    final userName = authProvider.user?.name ?? 'Pengguna';
+    final absensiProvider = Provider.of<AbsensiProvider>(context);
+    final izinProvider = Provider.of<IzinKeluarProvider>(context);
+    final user = authProvider.user;
+    final userName = user?.name ?? 'Pengguna';
 
-    return SafeArea(
-      child: RefreshIndicator( // <--- PASANG DI SINI (SETELAH SafeArea)
-        onRefresh: _refreshData, // Panggil fungsi refresh saat ditarik
-        color: kPrimaryColor,
-        child: SingleChildScrollView(
-          // PENTING: Ganti physics agar selalu bisa ditarik ke bawah
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      color: kPrimaryColor,
+      backgroundColor: Colors.white,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          // Premium Header
+          SliverToBoxAdapter(
+            child: _buildGojekStyleHeader(userName, user, apiService),
           ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            HomeHeader(
-              userName: userName,
-              timeString: _timeString,
-              dateString: _formatDate(DateTime.now()),
-              unreadCountFuture: _unreadCountFuture,
-              onNotificationTap: () => _navigateToNotifications(apiService),
-            ),
-            const SizedBox(height: 24),
-            Padding(
+          
+          // Content Actions
+          SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Layanan Utama',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 28),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: _buildServiceCard(
-                          context,
-                          'Absensi Masuk',  
-                          Icons.arrow_circle_right_rounded,
-                          kSuccessColor,
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const AbsensiMasukScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildServiceCard(
-                          context,
-                          'Absensi Pulang',
-                          Icons.arrow_circle_left_rounded,
-                          kWarningColor,
-                          () => _showLemburOptions(context),
-                        ),
-                      ),
+                      const Text('Layanan Mandiri', style: TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                        child: const Text('Shift 08:00', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: kPrimaryColor)),
+                      )
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // ✅ WIDGET SISA CUTI (hanya organik)
-                  Consumer<AuthProvider>(
-                    builder: (context, auth, _) {
-                      final user = auth.user;
-                      if (user == null || user.employmentType != 'organik') {
-                        return const SizedBox.shrink();
-                      }
-
-                      final sisaCuti = user.sisaCuti ?? 12;
-                      final totalDiambil = user.totalCutiDiambil ?? 0;
-                      final tahun = user.tahunCuti ?? DateTime.now().year;
-                      final progressValue = (totalDiambil / 12).clamp(0.0, 1.0);
-
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF152C5C), Color(0xFF1E4D8C)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                  
+                  // Tombol Izin Keluar (Hanya jika Sedang Hadir)
+                  if (absensiProvider.currentDayAbsensi != null && 
+                      (absensiProvider.currentDayAbsensi!.status.toLowerCase() == 'hadir' || absensiProvider.currentDayAbsensi!.status.toLowerCase() == 'terlambat') &&
+                      absensiProvider.currentDayAbsensi!.checkOutAt == null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: izinProvider.isIzinBerjalan ? Colors.redAccent.shade700 : Colors.indigo.shade600,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF152C5C).withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          elevation: 0,
                         ),
-                        child: Row(
-                          children: [
-                            // Icon
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.beach_access_rounded,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-
-                            // Info sisa cuti
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Sisa Cuti Tahunan $tahun',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        '$sisaCuti',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const Text(
-                                        ' / 12 hari',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            // Progress & terpakai
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'Terpakai',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                Text(
-                                  '$totalDiambil hari',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: 80,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: progressValue,
-                                      backgroundColor: Colors.white24,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        sisaCuti <= 3
-                                            ? Colors.red.shade300
-                                            : Colors.greenAccent,
-                                      ),
-                                      minHeight: 6,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                        onPressed: () {
+                          if (izinProvider.isIzinBerjalan) {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const EndIzinScreen()));
+                          } else {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const StartIzinScreen()));
+                          }
+                        },
+                        icon: Icon(izinProvider.isIzinBerjalan ? Icons.back_hand_rounded : Icons.exit_to_app_rounded),
+                        label: Text(
+                          izinProvider.isIzinBerjalan ? "Selesaikan Izin Keluar" : "Izin Keluar",
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                      );
-                    },
+                      ),
+                    ),
+
+                  // Quick Actions Grid (Gojek/Shopee Style)
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 16,
+                    alignment: WrapAlignment.spaceBetween,
+                    children: [
+                      _buildQuickAction(
+                        icon: Icons.login_rounded,
+                        label: 'Masuk',
+                        color: const Color(0xFF10B981),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiMasukScreen())),
+                      ),
+                      _buildQuickAction(
+                        icon: Icons.logout_rounded,
+                        label: 'Pulang',
+                        color: const Color(0xFFEF4444),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiPulangScreen(lembur: false))),
+                      ),
+                      _buildQuickAction(
+                        icon: Icons.more_time_rounded,
+                        label: 'Lembur',
+                        color: const Color(0xFFF59E0B),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiLemburScreen())),
+                      ),
+                      if (user?.employmentType?.toLowerCase() != 'organik')
+                        _buildQuickAction(
+                          icon: Icons.timer_off_rounded,
+                          label: 'Telat',
+                          color: const Color(0xFFF59E0B),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiTelatFormScreen())),
+                        ),
+                      _buildQuickAction(
+                        icon: Icons.masks_rounded,
+                        label: 'Pengajuan',
+                        color: const Color(0xFF8B5CF6),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SakitFormScreen())),
+                      ),
+                      _buildQuickAction(
+                        icon: Icons.event_available_rounded,
+                        label: 'Lembur\nTerjadwal',
+                        color: const Color(0xFFF97316),
+                        onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const JadwalLemburScreen())),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                  // ✅ TOMBOL PENGAJUAN TELAT
-                  _buildServiceCardWide(
-                    context,
-                    'Pengajuan Keterangan Telat',
-                    Icons.timer_off_rounded,
-                    const Color(0xFF7C3AED),
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AbsensiTelatFormScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                  // Modern Live Clock Card
+                  _buildLiveClockCard(),
+
+                  const SizedBox(height: 24),
+                  
+                  // Info Banner
+                  const InfoBanner(),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20.0),
-              child: InfoBanner(),
-            ),
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-      ),
-    );
-  }
-
-  Widget _buildServiceCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 36),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  height: 1.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ✅ TAMBAHAN: Wide card untuk pengajuan telat
-  Widget _buildServiceCardWide(
-    BuildContext context,
-    String title,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ----------------------------------------------------------------------
-// SEPARATE WIDGETS
-// ----------------------------------------------------------------------
-
-class HomeHeader extends StatelessWidget {
-  final String userName;
-  final String timeString;
-  final String dateString;
-  final Future<int> unreadCountFuture;
-  final VoidCallback onNotificationTap;
-
-  const HomeHeader({
-    super.key,
-    required this.userName,
-    required this.timeString,
-    required this.dateString,
-    required this.unreadCountFuture,
-    required this.onNotificationTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 4),
           )
         ],
+      ),
+    );
+  }
+
+  // Gojek / Shopee style Pay/Wallet mimicking Header
+  Widget _buildGojekStyleHeader(String userName, dynamic user, ApiService apiService) {
+    return Container(
+      padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 30),
+      decoration: const BoxDecoration(
+        color: kPrimaryColor,
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(36), bottomRight: Radius.circular(36)),
+        gradient: LinearGradient(
+          colors: [Color(0xFF4F46E5), Color(0xFF312E81)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(color: Color(0xFF312E81), blurRadius: 20, offset: Offset(0, 5))
+        ]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ Row atas: nama user + notifikasi
+          // Top Row: User & Notif
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ✅ Expanded biar ga overflow
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Selamat Datang, $userName',
-                      style: TextStyle(
-                        color: kPrimaryColor.withOpacity(0.8),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Portal Absensi Harian',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ],
-                ),
+              Row(
+                children: [
+                   Container(
+                     padding: const EdgeInsets.all(3),
+                     decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                     child: CircleAvatar(
+                       radius: 22,
+                       backgroundColor: const Color(0xFFE0E7FF),
+                       backgroundImage: (user != null && user.profilePhotoUrl != null && user.profilePhotoUrl.isNotEmpty) 
+                           ? NetworkImage(user.profilePhotoUrl) 
+                           : null,
+                       child: (user == null || user.profilePhotoUrl == null || user.profilePhotoUrl.isEmpty)
+                           ? Text(userName.isNotEmpty ? userName[0].toUpperCase() : 'U', style: const TextStyle(color: kPrimaryColor, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins'))
+                           : null,
+                     ),
+                   ),
+                   const SizedBox(width: 14),
+                   Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       const Text('Selamat Datang,', style: TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Poppins')),
+                       Text(userName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'Poppins', letterSpacing: 0.5)),
+                     ],
+                   )
+                ],
               ),
-              const SizedBox(width: 8),
-              // ✅ Tombol notifikasi
-              InkWell(
-                onTap: onNotificationTap,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
+              // Notification Bell
+              GestureDetector(
+                onTap: () => _navigateToNotifications(apiService),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: kPrimaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: kPrimaryColor,
-                          size: 26,
-                        ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: FutureBuilder<int>(
-                          future: unreadCountFuture,
-                          builder: (context, snapshot) {
-                            final count = snapshot.data ?? 0;
-                            if (count > 0) {
-                              return Container(
-                                width: 18,
-                                height: 18,
+                      const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
+                      FutureBuilder<int>(
+                        future: _unreadCountFuture,
+                        builder: (context, snapshot) {
+                          final count = snapshot.data ?? 0;
+                          if (count > 0) {
+                            return Positioned(
+                              right: -4, top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
-                                  color: Colors.red,
+                                  color: const Color(0xFFEF4444), 
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 1.5),
+                                  border: Border.all(color: const Color(0xFF4F46E5), width: 2)
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    count > 9 ? '9+' : '$count',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                      height: 1,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
-                      ),
+                                child: Text('${count > 9 ? '9+' : count}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, height: 1)),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      )
                     ],
                   ),
                 ),
-              ),
+              )
             ],
           ),
-          const SizedBox(height: 20),
-          // ✅ Clock card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: kPrimaryColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: kPrimaryColor.withOpacity(0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dateString,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeString,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: kAccentColor,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
+          const SizedBox(height: 32),
+          
+          // GoPay / ShopeePay style "Sisa Cuti" Wallet Card
+          if (user != null && user.employmentType == 'organik')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.schedule_rounded, color: kPrimaryColor, size: 18),
-                      SizedBox(width: 6),
-                      Text(
-                        '08:00 WIB',
-                        style: TextStyle(
-                          color: kPrimaryColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(Icons.account_balance_wallet_rounded, color: kPrimaryColor, size: 20),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Sisa Cuti Tahunan', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey.shade600, fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('${user.sisaCuti ?? 12}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w800, color: Color(0xFF1F2937), fontSize: 32, height: 1)),
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 4.0, left: 6.0),
+                            child: Text('Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 15)),
+                          )
+                        ],
                       ),
                     ],
                   ),
-                ),
-              ],
+                  // Separator
+                  Container(height: 50, width: 1.5, color: Colors.grey.shade200),
+                  // Terpakai
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('Terpakai', style: TextStyle(fontFamily: 'Poppins', color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 6),
+                      Text('${user.totalCutiDiambil ?? 0} Hari', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: kPrimaryColor, fontSize: 18)),
+                    ],
+                  )
+                ],
+              ),
+            )
+          else 
+            // If not organik, just show a nice date indicator
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.calendar_month_rounded, color: kPrimaryColor, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Tanggal Hari Ini', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey.shade500, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      Text(_formatDate(DateTime.now()), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, color: Color(0xFF1F2937), fontSize: 16)),
+                    ],
+                  )
+                ],
+              ),
+            )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAction({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.grey.shade100, width: 2),
+              boxShadow: [BoxShadow(color: color.withOpacity(0.15), blurRadius: 15, offset: const Offset(0, 8))]
             ),
+            child: Icon(icon, color: color, size: 32),
           ),
+          const SizedBox(height: 12),
+          Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveClockCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2937),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [BoxShadow(color: const Color(0xFF1F2937).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -30, top: -20,
+            child: Icon(Icons.access_time_filled_rounded, size: 140, color: Colors.white.withOpacity(0.04)),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sync_rounded, color: Colors.greenAccent, size: 14),
+                    SizedBox(width: 6),
+                    Text('Waktu Server AKTIF', style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(_timeString, style: const TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 52, fontWeight: FontWeight.w800, height: 1, letterSpacing: 2)),
+              const SizedBox(height: 10),
+              Text(_formatDate(DateTime.now()), style: TextStyle(fontFamily: 'Poppins', color: Colors.white.withOpacity(0.6), fontSize: 15)),
+            ],
+          )
         ],
       ),
     );
@@ -735,168 +554,32 @@ class InfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xFFF0F9FF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFBAE6FD)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: kAccentColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.campaign_rounded, color: kAccentColor, size: 24),
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(color: Color(0xFF0EA5E9), shape: BoxShape.circle),
+            child: const Icon(Icons.campaign_rounded, color: Colors.white, size: 26),
           ),
-          const SizedBox(width: 15),
-          const Expanded(
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Pengumuman Penting',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Pastikan Anda berada di lokasi kantor saat melakukan absensi masuk & pulang.',
-                  style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
-                ),
+                const Text('Pengumuman Penting', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0369A1))),
+                const SizedBox(height: 6),
+                Text('Pastikan Anda berada di area kantor saat melakukan absensi masuk maupun pulang agar ditrack akurat.', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Color(0xFF075985), height: 1.5, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class PulangOptionsModal extends StatelessWidget {
-  const PulangOptionsModal({super.key});
-
-  Widget _buildModalButton(
-    BuildContext context,
-    String text,
-    IconData icon,
-    Color color,
-    VoidCallback onPressed,
-  ) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 6,
-        shadowColor: color.withOpacity(0.4),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24.0),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Opsi Absensi Pulang',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: kPrimaryColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Pilih status kepulangan Anda hari ini.',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            _buildModalButton(
-              context,
-              'Lembur (Overtime)',
-              Icons.schedule_rounded,
-              kWarningColor,
-              () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AbsensiPulangScreen(lembur: true),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildModalButton(
-              context,
-              'Selesai Kerja (Normal)',
-              Icons.check_circle_outline_rounded,
-              kSuccessColor,
-              () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AbsensiPulangScreen(lembur: false),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              child: Text(
-                'Batalkan',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

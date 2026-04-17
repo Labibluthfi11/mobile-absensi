@@ -1,6 +1,6 @@
 // lib/services/api_service.dart
 
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mime/mime.dart';
@@ -18,13 +18,14 @@ class ApiService {
 
   ApiService() {
     _dio = Dio(
-      BaseOptions(
-        baseUrl: ApiConstants.BASE_URL,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-        headers: {'Accept': 'application/json'},
-      ),
-    );
+  BaseOptions(
+    baseUrl: ApiConstants.BASE_URL,
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 60),
+    sendTimeout: const Duration(seconds: 60),
+    headers: {'Accept': 'application/json'},
+  ),
+);
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -338,6 +339,7 @@ Future<Map<String, dynamic>> resetPassword({
     required double lng,
     String? tipe,
     String? keterangan,
+    File? fileBukti,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -346,8 +348,16 @@ Future<Map<String, dynamic>> resetPassword({
         'lat': lat,
         'lng': lng,
         if (tipe != null) 'tipe': tipe,
+        if (keterangan != null) 'keterangan_izin_sakit': keterangan,
         if (keterangan != null) 'keterangan': keterangan,
       });
+
+      if (fileBukti != null) {
+        formData.files.add(MapEntry(
+          'file_bukti',
+          await MultipartFile.fromFile(fileBukti.path, filename: fileBukti.path.split('/').last)
+        ));
+      }
 
       final response = await _dio.post('/absensi/pulang', data: formData);
       if (response.data != null && response.data['data'] != null) {
@@ -425,7 +435,14 @@ Future<Map<String, dynamic>> resetPassword({
         ));
       }
 
-      final response = await _dio.post('/absensi/lembur', data: formData);
+      final response = await _dio.post(
+  '/absensi/lembur',
+  data: formData,
+  options: Options(
+    sendTimeout: const Duration(seconds: 120),
+    receiveTimeout: const Duration(seconds: 120),
+  ),
+);
       if (response.data != null && response.data['data'] != null) {
         return {'success': true, 'message': response.data['message'], 'data': Absensi.fromJson(response.data['data'])};
       }
@@ -434,6 +451,114 @@ Future<Map<String, dynamic>> resetPassword({
       return _handleDioError(e, 'Absen lembur gagal');
     } catch (e) {
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Pengajuan lembur terpisah dari flow pulang
+  /// Endpoint: POST /absensi/submit-lembur
+  Future<Map<String, dynamic>> submitLembur({
+    required String jamMulai,
+    required String jamSelesai,
+    required bool istirahat,
+    required String keterangan,
+    required String goals,
+    required List<File> hasilKerjaFiles,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'jam_mulai': jamMulai,
+        'jam_selesai': jamSelesai,
+        'istirahat': istirahat ? '1' : '0',
+        'keterangan': keterangan,
+        'keterangan_goals': goals,
+      });
+
+      for (int i = 0; i < hasilKerjaFiles.length && i < 5; i++) {
+        String fieldName = i == 0 ? 'foto_bukti' : 'foto_${i + 1}';
+        String fName = hasilKerjaFiles[i].path.split('/').last;
+        formData.files.add(MapEntry(
+          fieldName,
+          await MultipartFile.fromFile(hasilKerjaFiles[i].path, filename: fName),
+        ));
+      }
+
+      final response = await _dio.post(
+        '/absensi/submit-lembur',
+        data: formData,
+        options: Options(
+          sendTimeout: const Duration(seconds: 120),
+          receiveTimeout: const Duration(seconds: 120),
+        ),
+      );
+
+      if (response.data != null) {
+        return {
+          'success': true,
+          'message': response.data['message'] ?? 'Pengajuan lembur berhasil.',
+          'data': response.data['data'],
+        };
+      }
+      return {'success': false, 'message': 'Data tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Pengajuan lembur gagal');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> submitLemburTerjadwal({
+    required String tanggalLembur,
+    required String keterangan,
+    File? fotoBukti,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'tanggal_lembur': tanggalLembur,
+        'keterangan': keterangan,
+      });
+
+      if (fotoBukti != null) {
+        String fileName = fotoBukti.path.split('/').last;
+        formData.files.add(MapEntry(
+            'foto_bukti',
+            await MultipartFile.fromFile(fotoBukti.path, filename: fileName)
+        ));
+      }
+
+      final response = await _dio.post(
+        '/absensi/scheduled-lembur',
+        data: formData,
+        options: Options(
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+      );
+
+      if (response.data != null) {
+        return {
+          'success': true,
+          'message': response.data['message'],
+          'data': response.data['data']
+        };
+      }
+      return {'success': false, 'message': 'Data tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Pengajuan lembur terjadwal gagal');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<List<dynamic>> getLemburTerjadwal() async {
+    try {
+      final response = await _dio.get('/absensi/scheduled-lembur');
+      if (response.statusCode == 200 && response.data != null && response.data['data'] is List) {
+        return response.data['data'];
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching scheduled lembur: $e');
+      return [];
     }
   }
 
@@ -656,6 +781,57 @@ Future<Map<String, dynamic>> resetPassword({
 
 
   // =========================================================================
+  // SECTION IZIN KELUAR
+  // =========================================================================
+
+  Future<Map<String, dynamic>> startIzinKeluar({
+    required String tipeIzin,
+    String? tipeDurasi,
+    required String alasanKeluar,
+    required File fotoSurat,
+  }) async {
+    try {
+      var formData = FormData.fromMap({
+        'tipe_izin': tipeIzin,
+        'alasan_keluar': alasanKeluar,
+        if (tipeDurasi != null) 'tipe_durasi': tipeDurasi,
+        'foto_surat': await MultipartFile.fromFile(fotoSurat.path, filename: fotoSurat.path.split('/').last),
+      });
+
+      final response = await _dio.post('/izin-keluar/start', data: formData);
+      return {'success': true, 'message': response.data['message'] ?? 'Berhasil memulai izin', 'statusCode': response.statusCode};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal memulai izin keluar');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> endIzinKeluar({
+    required String keteranganKembali,
+    required File dokumenKembali,
+  }) async {
+    try {
+      var formData = FormData.fromMap({
+        'keterangan_kembali': keteranganKembali,
+        'dokumen_kembali': await MultipartFile.fromFile(dokumenKembali.path, filename: dokumenKembali.path.split('/').last),
+      });
+
+      final response = await _dio.post('/izin-keluar/end', data: formData);
+      return {
+        'success': true, 
+        'message': response.data['message'] ?? 'Berhasil menyelesaikan izin', 
+        'statusCode': response.statusCode, 
+        'is_pelanggaran': response.data['is_pelanggaran'] == true
+      };
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal menyelesaikan izin keluar');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // =========================================================================
   // SECTION NOTIFICATIONS
   // =========================================================================
 
@@ -733,6 +909,16 @@ Future<Map<String, dynamic>> resetPassword({
 
   Map<String, dynamic> _handleDioError(DioException e, String defaultMessage) {
     String message = defaultMessage;
+    bool isNetworkError = false;
+
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.sendTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      isNetworkError = true;
+      message = "internet lu bapuk banget boy asli";
+    }
+
     if (e.response != null) {
       if (e.response!.data != null && e.response!.data is Map<String, dynamic>) {
         if (e.response!.data.containsKey('message') && e.response!.data['message'] != null) {
@@ -749,10 +935,18 @@ Future<Map<String, dynamic>> resetPassword({
         message = 'Server error: ${e.response!.statusCode}';
       }
       print('Dio error: ${e.response!.statusCode} - ${e.response!.data}');
-    } else {
+    } else if (!isNetworkError) {
       message = 'Network error: ${e.message}';
       print('Dio error: ${e.message}');
     }
-    return {'success': false, 'message': message};
+
+    return {
+      'success': false, 
+      'message': message, 
+      'statusCode': e.response?.statusCode,
+      'isNetworkError': isNetworkError,
+      'data': e.response?.data
+    };
   }
+
 }

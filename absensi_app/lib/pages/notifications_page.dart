@@ -24,15 +24,22 @@ class _NotificationsPageState extends State<NotificationsPage>
   bool _isRefreshing = false;
 
   // Warna-warna utama untuk tema modern premium
-  static const Color _primaryColor = Color(0xFF4A68FF);
-  static const Color _backgroundColor = Color(0xFFF0F2F5);
+  static const Color _primaryColor = Color(0xFF4F46E5); // Deep Indigo
+  static const Color _backgroundColor = Color(0xFFF3F4F6);
   static const Color _shadowLight = Color(0xFFFFFFFF);
   static const Color _shadowDark = Color(0xFFD9DCE2);
 
   @override
   void initState() {
     super.initState();
-    _notificationsFuture = widget.apiService.fetchNotifications();
+    _notificationsFuture = widget.apiService.fetchNotifications().then((notifs) {
+      for (var notif in notifs) {
+        if (!notif.isRead) {
+          widget.apiService.markNotificationAsRead(notif.id);
+        }
+      }
+      return notifs;
+    });
   }
 
   Future<void> _refreshNotifications() async {
@@ -55,17 +62,24 @@ class _NotificationsPageState extends State<NotificationsPage>
     print('   - Target ID: $targetId');
     print('   - Target Page: ${notif.targetPage}');
 
-    // ✅ PRIORITAS KHUSUS untuk LEMBUR - Langsung ke screen dengan parameter
-    if (type.contains('lembur')) {
-      print('✅ Navigate to: Absensi Pulang Lembur Screen (lembur: true)');
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const AbsensiPulangScreen(lembur: true),
-        ),
-      );
-      return;
-    }
+  
+if (type.contains('scheduled_lembur')) {
+  print('✅ Navigate to: Jadwal Lembur Screen');
+  Navigator.pushNamed(context, '/jadwal_lembur');
+  return;
+}
+
+// Reminder lembur hari ini → ke absen pulang lembur
+if (type.contains('lembur_reminder') || type == 'lembur') {
+  print('✅ Navigate to: Absensi Pulang Lembur Screen (lembur: true)');
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const AbsensiPulangScreen(lembur: true),
+    ),
+  );
+  return;
+}
 
     // Untuk tipe lainnya, gunakan named route
     String route = '/home'; // default fallback
@@ -223,6 +237,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                 title: Text(
                   'Inbox & Notifikasi',
                   style: TextStyle(
+                    fontFamily: 'Poppins',
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                     fontSize: 28,

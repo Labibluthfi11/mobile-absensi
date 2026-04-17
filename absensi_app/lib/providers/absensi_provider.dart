@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/models/absensi_model.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 class AbsensiProvider with ChangeNotifier {
   final ApiService _apiService;
@@ -187,6 +187,7 @@ class AbsensiProvider with ChangeNotifier {
     required double lng,
     String? tipe,
     String? keterangan,
+    File? fileBukti,
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
@@ -196,7 +197,8 @@ class AbsensiProvider with ChangeNotifier {
         lat: lat, 
         lng: lng, 
         tipe: tipe, 
-        keterangan: keterangan
+        keterangan: keterangan,
+        fileBukti: fileBukti,
       );
       if (result['success'] == true) {
         await fetchMyAbsensi();
@@ -245,6 +247,41 @@ class AbsensiProvider with ChangeNotifier {
       }
     } catch (e) {
       _errorMessage = 'Error absen lembur: ${e.toString()}';
+      result = {'success': false, 'message': _errorMessage};
+    } finally {
+      setIsLoading(false);
+      notifyListeners();
+    }
+    return result;
+  }
+
+  /// Pengajuan lembur terpisah dari flow pulang
+  Future<Map<String, dynamic>> submitLembur({
+    required String jamMulai,
+    required String jamSelesai,
+    required bool istirahat,
+    required String keterangan,
+    required String goals,
+    required List<File> hasilKerjaFiles,
+  }) async {
+    setIsLoading(true);
+    Map<String, dynamic> result;
+    try {
+      result = await _apiService.submitLembur(
+        jamMulai: jamMulai,
+        jamSelesai: jamSelesai,
+        istirahat: istirahat,
+        keterangan: keterangan,
+        goals: goals,
+        hasilKerjaFiles: hasilKerjaFiles,
+      );
+      if (result['success'] == true) {
+        await fetchMyAbsensi();
+      } else {
+        _errorMessage = result['message'] ?? 'Pengajuan lembur gagal.';
+      }
+    } catch (e) {
+      _errorMessage = 'Error pengajuan lembur: ${e.toString()}';
       result = {'success': false, 'message': _errorMessage};
     } finally {
       setIsLoading(false);

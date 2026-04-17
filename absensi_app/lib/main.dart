@@ -1,3 +1,4 @@
+import 'package:absensi_app/screens/home/absensi_pulang_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
@@ -7,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/providers/auth_provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
+import 'package:absensi_app/providers/izin_keluar_provider.dart';
 
 // === Import screens utama ===
 import 'package:absensi_app/screens/auth/login.screen.dart';
@@ -16,8 +18,9 @@ import 'package:absensi_app/screens/splash/splash_screen.dart';
 
 // === Import halaman tambahan untuk navigasi dari notifikasi ===
 import 'package:absensi_app/pages/notifications_page.dart';
-import 'package:absensi_app/screens/home/absensi_pulang_screen.dart';
 import 'package:absensi_app/screens/home/absensi_sakit_form_screen.dart';
+import 'package:absensi_app/screens/home/jadwal_lembur_screen.dart';
+import 'package:absensi_app/screens/home/absensi_lembur_screen.dart';
 
 late List<CameraDescription> cameras;
 
@@ -46,6 +49,11 @@ void main() async {
         ),
         ChangeNotifierProvider(
           create: (context) => AbsensiProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => IzinKeluarProvider(
             apiService: context.read<ApiService>(),
           ),
         ),
@@ -83,12 +91,14 @@ class MyApp extends StatelessWidget {
   '/notifications': (context) => NotificationsPage(apiService: apiService),
 
   // === Rute dari notifikasi ===
-  '/lembur_detail': (context) => const AbsensiPulangScreen(),
+  '/lembur_detail': (context) => const AbsensiLemburScreen(),
+  '/lembur': (context) => const AbsensiLemburScreen(),
   '/sakit_detail': (context) => const SakitFormScreen(),
   '/izin_detail': (context) => const SakitFormScreen(),
 
   // ✅ Tambahkan ini biar gak error lagi
   '/absensi_detail': (context) => const AbsensiPulangScreen(),
+  '/jadwal_lembur': (context) => const JadwalLemburScreen(),
 },
 
     );

@@ -1,3 +1,5 @@
+import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -9,7 +11,7 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -19,10 +21,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _departemenController = TextEditingController();
 
   String _selectedEmploymentType = 'organik';
-  String _selectedWorkLocation = 'office'; // ✅ TAMBAH
+  String _selectedWorkLocation = 'office';
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
+  late AnimationController _bgAnimController;
+  late Animation<Alignment> _topAlignment;
+  late Animation<Alignment> _bottomAlignment;
+
+  @override
+  void initState() {
+    super.initState();
+    _bgAnimController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
+    _topAlignment = Tween<Alignment>(begin: Alignment.topRight, end: Alignment.topLeft).animate(_bgAnimController);
+    _bottomAlignment = Tween<Alignment>(begin: Alignment.bottomLeft, end: Alignment.bottomRight).animate(_bgAnimController);
+  }
 
   @override
   void dispose() {
+    _bgAnimController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -32,8 +49,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  void _showCustomAlert(String message, {bool isSuccess = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(isSuccess ? Icons.check_circle_outline : Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message, style: const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Poppins'))),
+          ],
+        ),
+        backgroundColor: isSuccess ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.all(20),
+        elevation: 8,
+      ),
+    );
+  }
+
   Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
+      FocusScope.of(context).unfocus();
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       try {
@@ -45,384 +82,391 @@ class _RegisterScreenState extends State<RegisterScreen> {
           idKaryawan: _idKaryawanController.text,
           departemen: _departemenController.text,
           employmentType: _selectedEmploymentType,
-          workLocation: _selectedWorkLocation, // ✅ TAMBAH
+          workLocation: _selectedWorkLocation,
         );
 
         if (authProvider.isAuthenticated) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registrasi Berhasil!')),
-          );
+          _showCustomAlert('Registrasi Berhasil! Selamat datang.', isSuccess: true);
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(authProvider.errorMessage ?? 'Registrasi gagal. Coba lagi.')),
-          );
+          _showCustomAlert(authProvider.errorMessage ?? 'Registrasi gagal. Coba lagi.');
         }
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(authProvider.errorMessage ?? 'Terjadi kesalahan tidak terduga.')),
-        );
+        _showCustomAlert(authProvider.errorMessage ?? 'Terjadi kesalahan sistem.');
       }
     }
   }
 
-  Widget _buildStylishTextField({
+  Widget _buildGlassTextField({
     required TextEditingController controller,
-    required String labelText,
-    String? hintText,
-    IconData? icon,
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    bool isPasswordVisible = false,
+    VoidCallback? onVisibilityToggle,
     String? Function(String?)? validator,
-    double width = double.infinity,
+    TextInputType keyboardType = TextInputType.text,
   }) {
-    return SizedBox(
-      width: width,
-      height: 56,
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        textAlign: TextAlign.start,
-        style: const TextStyle(
-          color: Color(0xFF393939),
-          fontSize: 13,
-          fontFamily: 'Poppins',
-          fontWeight: FontWeight.w400,
-        ),
-        validator: validator,
-        decoration: InputDecoration(
-          labelText: labelText,
-          hintText: hintText,
-          prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF755DC1)) : null,
-          labelStyle: const TextStyle(
-            color: Color(0xFF755DC1),
-            fontSize: 15,
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.w600,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10)),
-            borderSide: BorderSide(width: 1, color: Color(0xFF837E93)),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10)),
-            borderSide: BorderSide(width: 1, color: Color(0xFF9F7BFF)),
-          ),
-          errorBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10)),
-            borderSide: BorderSide(width: 1, color: Colors.red),
-          ),
-          focusedErrorBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10)),
-            borderSide: BorderSide(width: 1.5, color: Colors.red),
+          child: TextFormField(
+            controller: controller,
+            obscureText: isPassword && !isPasswordVisible,
+            keyboardType: keyboardType,
+            style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'),
+            decoration: InputDecoration(
+              hintText: label,
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.5), fontFamily: 'Poppins'),
+              prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.8)),
+              suffixIcon: isPassword
+                  ? IconButton(
+                      icon: Icon(isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.white.withOpacity(0.8)),
+                      onPressed: onVisibilityToggle,
+                    )
+                  : null,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              errorStyle: const TextStyle(color: Color(0xFFFF6B6B)),
+            ),
+            validator: validator,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDropdown({
+  Widget _buildGlassDropdown({
     required String label,
     required IconData icon,
     required String value,
     required List<DropdownMenuItem<String>> items,
     required void Function(String?) onChanged,
-    String? Function(String?)? validator,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF755DC1),
-            fontSize: 15,
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.w600,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: DropdownButtonFormField<String>(
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.8)),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            dropdownColor: const Color(0xFF1E1B4B),
+            icon: Icon(Icons.keyboard_arrow_down, color: Colors.white.withOpacity(0.8)),
+            style: const TextStyle(color: Colors.white, fontFamily: 'Poppins', fontSize: 15),
+            value: value,
+            items: items,
+            onChanged: onChanged,
           ),
         ),
-        const SizedBox(height: 5),
-        DropdownButtonFormField<String>(
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            enabledBorder: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-              borderSide: BorderSide(width: 1, color: Color(0xFF837E93)),
-            ),
-            focusedBorder: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-              borderSide: BorderSide(width: 1, color: Color(0xFF9F7BFF)),
-            ),
-            prefixIcon: Icon(icon, color: const Color(0xFF755DC1)),
-          ),
-          value: value,
-          items: items,
-          onChanged: onChanged,
-          validator: validator,
-        ),
-      ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    const double horizontalPadding = 50.0;
-    final contentWidth = screenWidth - (horizontalPadding * 2);
-    final passwordFieldWidth = (contentWidth - 15) / 2;
-
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Image
-            Padding(
-              padding: const EdgeInsets.only(top: 0),
-              child: Image.asset(
-                "assets/images/vector-2.png",
-                width: screenWidth,
-                height: screenWidth * 457 / 428,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 150,
-                    width: screenWidth,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Text("Image not found", style: TextStyle(color: Colors.red)),
-                    ),
-                  );
-                },
+      extendBodyBehindAppBar: true,
+      body: AnimatedBuilder(
+        animation: _bgAnimController,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: const [Color(0xFF2E1065), Color(0xFF1E1B4B), Color(0xFF0F172A)],
+                begin: _topAlignment.value,
+                end: _bottomAlignment.value,
               ),
             ),
-
-            const SizedBox(height: 18),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Sign up',
-                      style: TextStyle(
-                        color: Color(0xFF755DC1),
-                        fontSize: 27,
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-
-                    // Nama Lengkap
-                    _buildStylishTextField(
-                      controller: _nameController,
-                      labelText: 'Nama Lengkap',
-                      hintText: 'Masukkan nama lengkap anda',
-                      icon: Icons.person,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Nama tidak boleh kosong';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 17),
-
-                    // ID Karyawan
-                    _buildStylishTextField(
-                      controller: _idKaryawanController,
-                      labelText: 'ID Karyawan',
-                      hintText: 'Contoh: AMB071107',
-                      icon: Icons.badge,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'ID Karyawan tidak boleh kosong';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 17),
-
-                    // Departemen
-                    _buildStylishTextField(
-                      controller: _departemenController,
-                      labelText: 'Departemen',
-                      hintText: 'Masukkan nama departemen anda',
-                      icon: Icons.business_center,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Departemen tidak boleh kosong';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 17),
-
-                    // Status Karyawan
-                    _buildDropdown(
-                      label: 'Status Karyawan',
-                      icon: Icons.work,
-                      value: _selectedEmploymentType,
-                      items: const [
-                        DropdownMenuItem(value: 'organik', child: Text('Karyawan Organik')),
-                        DropdownMenuItem(value: 'freelance', child: Text('Freelance/Kontrak')),
-                      ],
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _selectedEmploymentType = newValue!;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Status karyawan wajib dipilih';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 17),
-
-                    // ✅ TAMBAH: Lokasi Kerja
-                    _buildDropdown(
-                      label: 'Lokasi Kerja',
-                      icon: Icons.location_on,
-                      value: _selectedWorkLocation,
-                      items: const [
-                        DropdownMenuItem(value: 'office', child: Text('Office')),
-                        DropdownMenuItem(value: 'produksi', child: Text('Produksi')),
-                      ],
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _selectedWorkLocation = newValue!;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Lokasi kerja wajib dipilih';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 17),
-
-                    // Email
-                    _buildStylishTextField(
-                      controller: _emailController,
-                      labelText: 'Email',
-                      hintText: 'Masukkan email anda',
-                      icon: Icons.email,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Email tidak boleh kosong';
-                        if (!value.contains('@')) return 'Format email tidak valid';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 17),
-
-                    // Password & Konfirmasi
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: child,
+          );
+        },
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildStylishTextField(
-                          controller: _passwordController,
-                          labelText: 'Password',
-                          hintText: 'Create Password',
-                          icon: Icons.lock,
-                          obscureText: true,
-                          width: passwordFieldWidth,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) return 'Password tdk blh ksong';
-                            if (value.length < 6) return 'Min 6 karakter';
-                            return null;
-                          },
-                        ),
-                        _buildStylishTextField(
-                          controller: _passwordConfirmationController,
-                          labelText: 'Konfirmasi',
-                          hintText: 'Confirm Password',
-                          icon: Icons.lock,
-                          obscureText: true,
-                          width: passwordFieldWidth,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) return 'Konfirmasi tdk blh ksong';
-                            if (value != _passwordController.text) return 'Password tdk cocok';
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 25),
-
-                    // Tombol Register
-                    Consumer<AuthProvider>(
-                      builder: (context, authProvider, child) {
-                        return authProvider.isLoading
-                            ? const Center(child: CircularProgressIndicator(color: Color(0xFF9F7BFF)))
-                            : ClipRRect(
-                                borderRadius: const BorderRadius.all(Radius.circular(10)),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _register,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF9F7BFF),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Create account',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontFamily: 'Poppins',
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                      },
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Pindah ke Login
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Have an account?',
-                          style: TextStyle(
-                            color: Color(0xFF837E93),
-                            fontSize: 13,
-                            fontFamily: 'Poppins',
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 2.5),
-                        InkWell(
-                          onTap: () => Navigator.of(context).pushReplacementNamed('/login'),
-                          child: const Text(
-                            'Log In',
-                            style: TextStyle(
-                              color: Color(0xFF755DC1),
-                              fontSize: 13,
-                              fontFamily: 'Poppins',
-                              fontWeight: FontWeight.w500,
+                        const SizedBox(height: 20),
+                        // Header
+                        Center(
+                          child: Container(
+                            height: 120,
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.05),
+                            ),
+                            child: Image.asset(
+                              "assets/images/logo.png",
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.app_registration, size: 70, color: Colors.white54),
                             ),
                           ),
                         ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Create Account',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Join us to manage your absensi',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 14,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              _buildGlassTextField(
+                                controller: _nameController,
+                                label: 'Nama Lengkap',
+                                icon: Icons.person_outline,
+                                validator: (val) => (val == null || val.isEmpty) ? 'Nama wajib diisi' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              _buildGlassTextField(
+                                controller: _idKaryawanController,
+                                label: 'ID Karyawan (cth: AMB071)',
+                                icon: Icons.badge_outlined,
+                                validator: (val) => (val == null || val.isEmpty) ? 'ID wajib diisi' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              _buildGlassTextField(
+                                controller: _departemenController,
+                                label: 'Departemen',
+                                icon: Icons.work_outline,
+                                validator: (val) => (val == null || val.isEmpty) ? 'Departemen wajib diisi' : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              _buildGlassDropdown(
+                                label: 'Status Karyawan',
+                                icon: Icons.card_membership,
+                                value: _selectedEmploymentType,
+                                items: const [
+                                  DropdownMenuItem(value: 'organik', child: Text('Karyawan Organik')),
+                                  DropdownMenuItem(value: 'freelance', child: Text('Freelance / Kontrak')),
+                                ],
+                                onChanged: (val) => setState(() => _selectedEmploymentType = val!),
+                              ),
+                              const SizedBox(height: 16),
+
+                              _buildGlassDropdown(
+                                label: 'Lokasi Kerja',
+                                icon: Icons.location_on_outlined,
+                                value: _selectedWorkLocation,
+                                items: const [
+                                  DropdownMenuItem(value: 'office', child: Text('Office')),
+                                  DropdownMenuItem(value: 'produksi', child: Text('Produksi')),
+                                ],
+                                onChanged: (val) => setState(() => _selectedWorkLocation = val!),
+                              ),
+                              const SizedBox(height: 16),
+
+                              _buildGlassTextField(
+                                controller: _emailController,
+                                label: 'Email',
+                                icon: Icons.alternate_email,
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (val) {
+                                  if (val == null || val.isEmpty) return 'Email wajib diisi';
+                                  if (!val.contains('@')) return 'Format email tidak valid';
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              _buildGlassTextField(
+                                controller: _passwordController,
+                                label: 'Password',
+                                icon: Icons.lock_outline,
+                                isPassword: true,
+                                isPasswordVisible: _isPasswordVisible,
+                                onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                                validator: (val) => (val == null || val.length < 6) ? 'Min 6 karakter' : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              _buildGlassTextField(
+                                controller: _passwordConfirmationController,
+                                label: 'Konfirmasi Password',
+                                icon: Icons.lock_reset,
+                                isPassword: true,
+                                isPasswordVisible: _isConfirmPasswordVisible,
+                                onVisibilityToggle: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                                validator: (val) => (val != _passwordController.text) ? 'Password tidak cocok' : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 35),
+                        
+                        Consumer<AuthProvider>(
+                          builder: (context, authProvider, child) {
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              height: 60,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF8B5CF6).withOpacity(0.4),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 5),
+                                  )
+                                ]
+                              ),
+                              child: ElevatedButton(
+                                onPressed: authProvider.isLoading ? null : _register,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                ),
+                                child: authProvider.isLoading
+                                    ? const SizedBox(
+                                        width: 60, height: 24,
+                                        child: Center(child: _ModernLoading()),
+                                      )
+                                    : const Text(
+                                        'Sign Up',
+                                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600, fontFamily: 'Poppins'),
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                        
+                        const SizedBox(height: 25),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Already have an account? ",
+                              style: TextStyle(color: Colors.white.withOpacity(0.6), fontFamily: 'Poppins'),
+                            ),
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).pushReplacementNamed('/login'),
+                              child: const Text(
+                                'Log In',
+                                style: TextStyle(
+                                  color: Color(0xFFA5B4FC),
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Poppins',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 40),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _ModernLoading extends StatefulWidget {
+  final Color color;
+  const _ModernLoading({this.color = Colors.white});
+  @override
+  State<_ModernLoading> createState() => _ModernLoadingState();
+}
+
+class _ModernLoadingState extends State<_ModernLoading> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+  }
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (i) {
+            final t = (_ctrl.value * 2 * math.pi) + (i * math.pi / 2);
+            final offset = math.sin(t) * 4;
+            final alpha = (math.sin(t) + 1) / 2 * 0.6 + 0.4;
+            return Transform.translate(
+              offset: Offset(0, offset),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Opacity(
+                  opacity: alpha,
+                  child: Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
