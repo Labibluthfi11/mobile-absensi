@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
@@ -57,10 +58,59 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
+  void _showFunnyNetworkErrorDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: const Color(0xFF1E1E2C), borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.white.withOpacity(0.1))),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.signal_wifi_connected_no_internet_4_rounded, color: Color(0xFFFB7185), size: 60),
+                ),
+                const SizedBox(height: 20),
+                const Text('Hayo Kenapa?', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                const Text('jaringan kamu bermasalah tauu, cari jaringan bagus dah kalo kata aku mah', style: TextStyle(fontFamily: 'Poppins', color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFB7185), padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0
+                    ),
+                    child: const Text('Coba sekali lagi yaa', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _login() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isLoading) return;
+
+    // Premium Haptic Feedback
+    HapticFeedback.mediumImpact();
+
     if (_formKey.currentState!.validate()) {
       FocusScope.of(context).unfocus();
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
       try {
         await authProvider.login(
           email: _emailController.text,
@@ -76,7 +126,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         }
       } catch (e) {
         if (!mounted) return;
-        _showCustomAlert('salah email kalo engga password yaa anak baik coba periksa lagi lebih teliti gitu');
+        final errorMsg = e.toString().toLowerCase();
+        if (errorMsg.contains('network') || 
+            errorMsg.contains('socket') || 
+            errorMsg.contains('timeout') || 
+            errorMsg.contains('connection') ||
+            errorMsg.contains('bapuk')) {
+          _showFunnyNetworkErrorDialog();
+        } else {
+          _showCustomAlert('salah email kalo engga password yaa anak baik coba periksa lagi lebih teliti gitu');
+        }
       }
     }
   }

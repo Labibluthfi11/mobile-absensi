@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:absensi_app/services/notification_service.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 // === Import service & provider ===
 import 'package:absensi_app/api/api.service.dart';
@@ -21,45 +24,65 @@ import 'package:absensi_app/pages/notifications_page.dart';
 import 'package:absensi_app/screens/home/absensi_sakit_form_screen.dart';
 import 'package:absensi_app/screens/home/jadwal_lembur_screen.dart';
 import 'package:absensi_app/screens/home/absensi_lembur_screen.dart';
+import 'package:absensi_app/services/security_service.dart';
+import 'package:absensi_app/screens/security/device_not_secure_screen.dart';
 
 late List<CameraDescription> cameras;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await initializeDateFormatting('id_ID', null);
+  await SentryFlutter.init(
+    (options) {
+      // Masukkan DSN Sentry lu di sini nanti bang
+      options.dsn = 'https://ec1c6b4670ff0903c80a5308f638b0fe@o4511295361187840.ingest.us.sentry.io/4511295414468608'; 
+      options.tracesSampleRate = 1.0;
+    },
+    appRunner: () async {
+      await Firebase.initializeApp();
+      await NotificationService().initialize();
+      await initializeDateFormatting('id_ID', null);
 
-  try {
-    cameras = await availableCameras();
-  } on CameraException catch (e) {
-    print('Error initializing cameras: ${e.description}');
-    cameras = [];
-  }
+      // 🔥 VALIDASI KEAMANAN PERANGKAT (ROOT/EMULATOR)
+      final securityStatus = await SecurityService.checkDeviceSecurity();
+      if (!securityStatus['isSafe']) {
+        runApp(DeviceNotSecureScreen(message: securityStatus['message']));
+        return;
+      }
 
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<ApiService>(
-          create: (_) => ApiService(),
+      try {
+        cameras = await availableCameras();
+      } on CameraException catch (e) {
+        print('Error initializing cameras: ${e.description}');
+        cameras = [];
+      }
+
+      runApp(
+        MultiProvider(
+          providers: [
+            Provider<ApiService>(
+              create: (_) => ApiService(),
+            ),
+            ChangeNotifierProvider(
+              create: (context) => AuthProvider(
+                apiService: context.read<ApiService>(),
+              ),
+            ),
+            ChangeNotifierProvider(
+              create: (context) => AbsensiProvider(
+                apiService: context.read<ApiService>(),
+              ),
+            ),
+            ChangeNotifierProvider(
+              create: (context) => IzinKeluarProvider(
+                apiService: context.read<ApiService>(),
+              ),
+            ),
+          ],
+          child: const MyApp(),
         ),
-        ChangeNotifierProvider(
-          create: (context) => AuthProvider(
-            apiService: context.read<ApiService>(),
-          ),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => AbsensiProvider(
-            apiService: context.read<ApiService>(),
-          ),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => IzinKeluarProvider(
-            apiService: context.read<ApiService>(),
-          ),
-        ),
-      ],
-      child: const MyApp(),
-    ),
+      );
+    },
   );
 }
 
@@ -73,6 +96,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Absensi App',
       debugShowCheckedModeBanner: false,
+      navigatorObservers: [
+        SentryNavigatorObserver(),
+      ],
       theme: ThemeData(
         primarySwatch: Colors.blue,
         appBarTheme: const AppBarTheme(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
@@ -10,6 +11,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../../providers/absensi_provider.dart'; 
 import 'package:intl/intl.dart';
+import '../../services/security_service.dart';
 
 const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo
 const Color kBackgroundColor = Color(0xFFF3F4F6);
@@ -110,24 +112,11 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     if (mounted) setState(() => _timeString = DateFormat('HH:mm:ss').format(DateTime.now()));
   }
 
-  Future<File?> _compressImage(File file) async {
-    if (kIsWeb) return file;
-    try {
-      final result = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path, '${file.path}_compressed.jpg', quality: 70, minWidth: 1024, minHeight: 1024,
-      );
-      return result != null ? File(result.path) : file;
-    } catch (e) {
-      return file;
-    }
-  }
-
   Future<void> _pickBuktiSakit() async {
     try {
       final XFile? img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
       if (img != null) {
-        final compressed = await _compressImage(File(img.path));
-        if (mounted) setState(() => _fileBuktiSakit = compressed);
+        if (mounted) setState(() => _fileBuktiSakit = File(img.path));
       }
     } catch (e) { _showSnackBar('Gagal memilih gambar bukti.', isSuccess: false); }
   }
@@ -216,24 +205,40 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
 
     if (absensiProvider.isLoading) return;
     
+    // Premium Haptic Feedback
+    HapticFeedback.mediumImpact();
+
+    // Start loading IMMEDIATELY
+    absensiProvider.setIsLoading(true);
+
     if (_capturedImageFile == null || _currentPosition == null) {
+      absensiProvider.setIsLoading(false);
       _showSnackBar('Foto selfie dan lokasi wajib dapet dulu.', isSuccess: false);
+      return;
+    }
+
+    // 🔥 SECURITY CHECK: Deteksi Mock Location / Fake GPS
+    bool isMock = await SecurityService.isMockLocation();
+    if (isMock || (_currentPosition != null && _currentPosition!.isMocked)) {
+      absensiProvider.setIsLoading(false);
+      _showSnackBar('Hayo loh! Matiin Fake GPS nya dulu bos, jangan curang!', isSuccess: false);
       return;
     }
 
     if (_isPulangSakit) {
       if (_fileBuktiSakit == null) {
+         absensiProvider.setIsLoading(false);
          _showSnackBar('File bukti sakit wajib diupload.', isSuccess: false);
          return;
       }
       if (_keteranganSakitController.text.trim().isEmpty) {
+         absensiProvider.setIsLoading(false);
          _showSnackBar('Keterangan sakit wajib diisi.', isSuccess: false);
          return;
       }
     }
 
     try {
-      absensiProvider.setIsLoading(true);
       absensiProvider.setErrorMessage(null);
       await Future.delayed(const Duration(milliseconds: 600));
 
@@ -263,7 +268,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
           } else {
             String errorMsg = result['message']?.toLowerCase() ?? '';
             if (errorMsg.contains('jam') || errorMsg.contains('waktu') || errorMsg.contains('belum')) {
-              _showRejectionDialog();
+              _showRejectionDialog(result['message'] ?? 'Belum waktunya pulang bos.');
             } else {
               _showSnackBar(result['message'] ?? 'Gagal rek.', isSuccess: false);
             }
@@ -322,52 +327,87 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   }
   
   void _showSuccessDialog() {
+    bool showButton = false;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
-                  child: Icon(Icons.beenhere_rounded, color: Colors.green.shade500, size: 60),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Delay appearance of button
+            Future.delayed(const Duration(seconds: 3), () {
+              if (context.mounted && !showButton) {
+                setDialogState(() => showButton = true);
+              }
+            });
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, spreadRadius: 5)]
                 ),
-                const SizedBox(height: 20),
-                const Text('Absensi Pulang Tercatat!', style: TextStyle(fontFamily: 'Poppins', fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)), textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                Text('Waktu Pulang: ${DateFormat('HH:mm').format(DateTime.now())}', style: const TextStyle(fontFamily: 'Poppins', color: Colors.grey)),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(); 
-                      Navigator.of(context).pop(); 
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kPrimaryColor, padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 0
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.pink.shade50, shape: BoxShape.circle),
+                      child: Icon(Icons.volunteer_activism_rounded, color: Colors.pink.shade400, size: 60),
                     ),
-                    child: const Text('Tutup', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                  ),
+                    const SizedBox(height: 24),
+                    const Text('Kerja Bagus Hari Ini! ✨', style: TextStyle(fontFamily: 'Poppins', fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)), textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    Text(
+                      'kamu capee ga kerjanya? kalo capee jangan di pendem sendiri yaa.. ceritain aja ke pasangan masing masing atau orang tua atau hts kalian wkwk.',
+                      style: TextStyle(fontFamily: 'Poppins', color: Colors.grey.shade700, fontSize: 14, height: 1.5),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'kalian kalo ga ada tempat cerita bisa berbagi cerita ke kami, kami siap menjadi pendengar yang baik.',
+                      style: TextStyle(fontFamily: 'Poppins', color: Colors.grey.shade500, fontSize: 13, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 500),
+                      opacity: showButton ? 1.0 : 0.0,
+                      child: Visibility(
+                        visible: showButton,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop(); 
+                              Navigator.of(context).pop(); 
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kPrimaryColor, padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              elevation: 0
+                            ),
+                            child: const Text('Istirahat Dulu Ya..', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!showButton)
+                      const Text('Sabar ya, lagi nyiapin pelukan virtual...', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Colors.grey)),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }
         );
       },
     );
   }
 
-  void _showRejectionDialog() {
+  void _showRejectionDialog(String message) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -388,9 +428,9 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
                  const SizedBox(height: 20),
                  const Text('Belum Waktunya Pulang!', style: TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)), textAlign: TextAlign.center),
                  const SizedBox(height: 12),
-                 const Text(
-                   'Maaf, Anda tidak bisa absen karena belum memenuhi jam kerja yang ditentukan.\n\nSemangat terus ya para calon orang sukses! 💪✨', 
-                   style: TextStyle(fontFamily: 'Poppins', color: Colors.grey, fontSize: 13),
+                 Text(
+                   message, 
+                   style: const TextStyle(fontFamily: 'Poppins', color: Colors.grey, fontSize: 13),
                    textAlign: TextAlign.center
                  ),
                  const SizedBox(height: 24),

@@ -56,10 +56,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _mainController.forward();
 
-    // Redirect after 3.5 seconds
-    Timer(const Duration(milliseconds: 3500), () {
+    // Redirect setelah logo selesai animasi & Auth data siap
+    Timer(const Duration(milliseconds: 3500), () async {
       if (mounted) {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        
+        // TUNGGU SAMPE PROSES BACA MEMORI KELAR
+        await authProvider.initializationFuture; 
+
         if (authProvider.isAuthenticated) {
           Navigator.of(context).pushReplacementNamed('/home');
         } else {

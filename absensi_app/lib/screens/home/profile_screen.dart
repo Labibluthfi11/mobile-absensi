@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
+import '../../services/image_compress_service.dart';
 
 const Color kPrimaryColor = Color(0xFF4F46E5);
 const Color kBackgroundColor = Color(0xFFF3F4F6);
@@ -217,13 +218,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await Future.delayed(const Duration(milliseconds: 600)); // Smooth loading transition
       
+      File? compressedPhoto;
+      if (_imageFile != null) {
+        compressedPhoto = await ImageCompressService.compressImage(_imageFile!);
+      }
+
       final result = await _apiService.updateProfile(
         name: _nameController.text,
         email: _user!.email,
         idKaryawan: _idKaryawanController.text,
         departemen: _departemenController.text,
         employmentType: _user!.employmentType,
-        profilePhoto: _imageFile,
+        profilePhoto: compressedPhoto,
       );
 
       if (!mounted) return;

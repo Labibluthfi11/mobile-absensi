@@ -2,10 +2,13 @@
 
 import 'package:universal_io/io.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:intl/intl.dart';
+import 'package:crypto/crypto.dart';
 
 import '../core/constants/api_constants.dart';
 import '../models/user_model.dart';
@@ -14,6 +17,7 @@ import '../models/notification_model.dart';
 
 class ApiService {
   late Dio _dio;
+  final _storage = const FlutterSecureStorage();
   static const String _authTokenKey = 'auth_token';
 
   ApiService() {
@@ -26,11 +30,26 @@ class ApiService {
     headers: {'Accept': 'application/json'},
   ),
 );
+    
+    // SSL Pinning Implementation
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      validateCertificate: (cert, host, port) {
+        if (cert == null) return false;
+        
+        // SHA-256 Fingerprint dari absensi.anselmudaberkarya.my.id
+        const String allowedFingerprint = "a25ee93cd1739e606993586a3e912ef5a903a08a11bf7e165695225dbb3a50d7";
+        
+        // Hitung fingerprint dari sertifikat yang diterima
+        final serverFingerprint = sha256.convert(cert.der).bytes.map((e) => e.toRadixString(16).padLeft(2, '0')).join();
+        
+        // Validasi: Harus cocok dengan pin yang kita simpan
+        return serverFingerprint == allowedFingerprint;
+      },
+    );
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString(_authTokenKey);
+        final token = await _storage.read(key: _authTokenKey);
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -62,7 +81,7 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.post(
-        '/register',
+        'register',
         data: {
           'name': name,
           'email': email,
@@ -97,7 +116,7 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.post(
-        '/login',
+        'login',
         data: {
           'email': email,
           'password': password,
@@ -122,7 +141,7 @@ class ApiService {
 
   Future<void> logout() async {
     try {
-      await _dio.post('/logout');
+      await _dio.post('logout');
     } on DioException {
       // Ignore error
     } catch (e) {
@@ -137,7 +156,7 @@ class ApiService {
 }) async {
   try {
     final response = await _dio.post(
-      '/forgot-password/send-otp',
+      'forgot-password/send-otp',
       data: {'email': email},
     );
     if (response.statusCode == 200) {
@@ -163,7 +182,7 @@ Future<Map<String, dynamic>> verifyOtp({
 }) async {
   try {
     final response = await _dio.post(
-      '/forgot-password/verify-otp',
+      'forgot-password/verify-otp',
       data: {'email': email, 'otp': otp},
     );
     if (response.statusCode == 200) {
@@ -191,7 +210,7 @@ Future<Map<String, dynamic>> resetPassword({
 }) async {
   try {
     final response = await _dio.post(
-      '/forgot-password/reset-password',
+      'forgot-password/reset-password',
       data: {
         'email': email,
         'otp': otp,
@@ -222,7 +241,7 @@ Future<Map<String, dynamic>> resetPassword({
       if (!prefs.containsKey(_authTokenKey)) {
         return null;
       }
-      final response = await _dio.get('/user');
+      final response = await _dio.get('user');
       if (response.statusCode == 200 && response.data != null) {
         final dynamic userData = response.data['data'] ?? response.data;
         if (userData is Map<String, dynamic>) {
@@ -282,7 +301,7 @@ Future<Map<String, dynamic>> resetPassword({
       }
 
       final response = await _dio.post(
-        '/user/profile',
+        'user/profile',
         data: formData,
         options: Options(contentType: 'multipart/form-data'),
       );
@@ -311,6 +330,8 @@ Future<Map<String, dynamic>> resetPassword({
     required double lat,
     required double lng,
     required String status,
+    bool isMocked = false,
+    Function(int sent, int total)? onProgress,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -319,9 +340,14 @@ Future<Map<String, dynamic>> resetPassword({
         'lat': lat,
         'lng': lng,
         'status': status,
+        'is_mocked': isMocked ? 1 : 0,
       });
 
-      final response = await _dio.post('/absensi/masuk', data: formData);
+      final response = await _dio.post(
+        'absensi/masuk', 
+        data: formData,
+        onSendProgress: onProgress,
+      );
       if (response.data != null && response.data['data'] != null) {
         return {'success': true, 'message': response.data['message'], 'data': Absensi.fromJson(response.data['data'])};
       }
@@ -340,6 +366,8 @@ Future<Map<String, dynamic>> resetPassword({
     String? tipe,
     String? keterangan,
     File? fileBukti,
+    bool isMocked = false,
+    Function(int sent, int total)? onProgress,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -347,6 +375,7 @@ Future<Map<String, dynamic>> resetPassword({
         'foto': await MultipartFile.fromFile(foto.path, filename: fileName),
         'lat': lat,
         'lng': lng,
+        'is_mocked': isMocked ? 1 : 0,
         if (tipe != null) 'tipe': tipe,
         if (keterangan != null) 'keterangan_izin_sakit': keterangan,
         if (keterangan != null) 'keterangan': keterangan,
@@ -359,7 +388,11 @@ Future<Map<String, dynamic>> resetPassword({
         ));
       }
 
-      final response = await _dio.post('/absensi/pulang', data: formData);
+      final response = await _dio.post(
+        'absensi/pulang', 
+        data: formData,
+        onSendProgress: onProgress,
+      );
       if (response.data != null && response.data['data'] != null) {
         return {'success': true, 'message': response.data['message'], 'data': Absensi.fromJson(response.data['data'])};
       }
@@ -381,6 +414,7 @@ Future<Map<String, dynamic>> resetPassword({
     required String keterangan,
     required String goals,
     required List<File> hasilKerjaFiles,
+    Function(int sent, int total)? onProgress,
   }) async {
     try {
       String fileName = foto.path.split('/').last;
@@ -436,8 +470,9 @@ Future<Map<String, dynamic>> resetPassword({
       }
 
       final response = await _dio.post(
-  '/absensi/lembur',
+  'absensi/lembur',
   data: formData,
+  onSendProgress: onProgress,
   options: Options(
     sendTimeout: const Duration(seconds: 120),
     receiveTimeout: const Duration(seconds: 120),
@@ -463,6 +498,7 @@ Future<Map<String, dynamic>> resetPassword({
     required String keterangan,
     required String goals,
     required List<File> hasilKerjaFiles,
+    Function(int sent, int total)? onProgress,
   }) async {
     try {
       FormData formData = FormData.fromMap({
@@ -483,8 +519,9 @@ Future<Map<String, dynamic>> resetPassword({
       }
 
       final response = await _dio.post(
-        '/absensi/submit-lembur',
+        'absensi/submit-lembur',
         data: formData,
+        onSendProgress: onProgress,
         options: Options(
           sendTimeout: const Duration(seconds: 120),
           receiveTimeout: const Duration(seconds: 120),
@@ -526,7 +563,7 @@ Future<Map<String, dynamic>> resetPassword({
       }
 
       final response = await _dio.post(
-        '/absensi/scheduled-lembur',
+        'absensi/scheduled-lembur',
         data: formData,
         options: Options(
           sendTimeout: const Duration(seconds: 60),
@@ -551,7 +588,7 @@ Future<Map<String, dynamic>> resetPassword({
 
   Future<List<dynamic>> getLemburTerjadwal() async {
     try {
-      final response = await _dio.get('/absensi/scheduled-lembur');
+      final response = await _dio.get('absensi/scheduled-lembur');
       if (response.statusCode == 200 && response.data != null && response.data['data'] is List) {
         return response.data['data'];
       }
@@ -563,7 +600,7 @@ Future<Map<String, dynamic>> resetPassword({
   }
 
   
-  Future<List<Absensi>> getAbsensiMe({String? searchDate, int? month, int? year}) async {
+  Future<List<Absensi>> getHistoryAbsensi({String? searchDate, int? month, int? year}) async {
     try {
       
       Map<String, dynamic> queryParameters = {};
@@ -573,7 +610,7 @@ Future<Map<String, dynamic>> resetPassword({
 
       
       final response = await _dio.get(
-        '/absensi/me',
+        'absensi/me',
         queryParameters: queryParameters, 
       );
 
@@ -595,6 +632,9 @@ Future<Map<String, dynamic>> resetPassword({
   Future<Map<String, dynamic>> absenSakit({
     required File fileBukti,
     required String catatan,
+    DateTime? startDate,
+    DateTime? endDate,
+    Function(int sent, int total)? onProgress,
   }) async {
     try {
       String fileName = fileBukti.path.split('/').last;
@@ -603,9 +643,15 @@ Future<Map<String, dynamic>> resetPassword({
         'keterangan_izin_sakit': catatan,
         'keterangan': catatan,
         'status': 'sakit',
+        if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
+        if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
 
-      final response = await _dio.post('/absensi/sakit', data: formData);
+      final response = await _dio.post(
+        'absensi/sakit', 
+        data: formData,
+        onSendProgress: onProgress,
+      );
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin sakit berhasil.'};
       }
@@ -623,6 +669,7 @@ Future<Map<String, dynamic>> resetPassword({
     required String catatanPanggilan,
     DateTime? startDate,
     DateTime? endDate,
+    Function(int sent, int total)? onProgress,
   }) async {
     try {
       String fileName = fileBukti.path.split('/').last;
@@ -636,7 +683,11 @@ Future<Map<String, dynamic>> resetPassword({
         if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
 
-      final response = await _dio.post('/absensi/izin', data: formData);
+      final response = await _dio.post(
+        'absensi/izin', 
+        data: formData,
+        onSendProgress: onProgress,
+      );
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Pengajuan izin berhasil.'};
       }
@@ -661,7 +712,7 @@ Future<Map<String, dynamic>> resetPassword({
       'absensi_id': absensiId,
     });
 
-    final response = await _dio.post('/absensi/telat', data: formData);
+    final response = await _dio.post('absensi/telat', data: formData);
     if (response.data != null) {
       return {
         'success': true,
@@ -685,6 +736,8 @@ Future<Map<String, dynamic>> resetPassword({
     required int absensiId,
     required File fileBukti,
     required String catatan,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     try {
       String fileName = fileBukti.path.split('/').last;
@@ -694,9 +747,11 @@ Future<Map<String, dynamic>> resetPassword({
         'keterangan': catatan,
         'status': 'pending',
         '_method': 'PUT',
+        if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
+        if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
 
-      final response = await _dio.post('/absensi/sakit/$absensiId/resubmit', data: formData);
+      final response = await _dio.post('absensi/sakit/$absensiId/resubmit', data: formData);
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Resubmit izin sakit berhasil.'};
       }
@@ -713,6 +768,8 @@ Future<Map<String, dynamic>> resetPassword({
     required File fileBukti,
     required String catatan,
     required String catatanPanggilan,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     try {
       String fileName = fileBukti.path.split('/').last;
@@ -723,11 +780,13 @@ Future<Map<String, dynamic>> resetPassword({
         'tipe': 'izin',
         'status': 'pending',
         '_method': 'PUT',
+        if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
+        if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
 
       
 
-      final response = await _dio.post('/absensi/izin/$absensiId/resubmit', data: formData);
+      final response = await _dio.post('absensi/izin/$absensiId/resubmit', data: formData);
       if (response.data != null) {
         return {'success': true, 'message': response.data['message'] ?? 'Resubmit izin berhasil.'};
       }
@@ -740,44 +799,63 @@ Future<Map<String, dynamic>> resetPassword({
   }
 
   Future<Map<String, dynamic>> resubmitLembur({
-  required int absensiId,
-  required File foto,
-  required double lat,
-  required double lng,
-  required String jamMulai,
-  required String jamSelesai,
-  required bool istirahat,
-  required String keterangan,
-}) async {
-  try {
-    String fileName = foto.path.split('/').last;
-    FormData formData = FormData.fromMap({
-      'foto': await MultipartFile.fromFile(foto.path, filename: fileName),
-      'lat': lat,
-      'lng': lng,
-      'jam_mulai': jamMulai,
-      'jam_selesai': jamSelesai,
-      'istirahat': istirahat ? '1' : '0',
-      'keterangan': keterangan,
-      'status': 'pending',
-      '_method': 'PUT',
-    });
+    required int absensiId,
+    required List<File> hasilKerjaFiles,
+    required double lat,
+    required double lng,
+    required String jamMulai,
+    required String jamSelesai,
+    required bool istirahat,
+    required String keterangan,
+    required String goals,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'lat': lat,
+        'lng': lng,
+        'jam_mulai': jamMulai,
+        'jam_selesai': jamSelesai,
+        'istirahat': istirahat ? '1' : '0',
+        'keterangan': keterangan,
+        'keterangan_goals': goals,
+        'status': 'pending',
+        '_method': 'PUT',
+      });
 
-    final response = await _dio.post('/absensi/lembur/$absensiId/resubmit', data: formData);
-    if (response.data != null) {
-      return {
-        'success': true,
-        'message': response.data['message'] ?? 'Resubmit lembur berhasil.',
-        'data': response.data['data']
-      };
+      // Upload multiple files
+      for (int i = 0; i < hasilKerjaFiles.length && i < 5; i++) {
+        String fieldName = i == 0 ? 'foto' : 'foto_${i + 1}'; // Backend usually uses 'foto' for the first one in lembur resubmit or 'foto_bukti'
+        // If it follows submitLembur logic:
+        // i == 0 ? 'foto_bukti' : 'foto_${i+1}'
+        // But the previous resubmitLembur used 'foto'. I'll stick to 'foto' for the first one but add others.
+        String fName = hasilKerjaFiles[i].path.split('/').last;
+        formData.files.add(MapEntry(
+          fieldName,
+          await MultipartFile.fromFile(hasilKerjaFiles[i].path, filename: fName),
+        ));
+      }
+
+      final response = await _dio.post('absensi/lembur/$absensiId/resubmit', 
+        data: formData,
+        options: Options(
+          sendTimeout: const Duration(seconds: 120),
+          receiveTimeout: const Duration(seconds: 120),
+        ),
+      );
+      if (response.data != null) {
+        return {
+          'success': true,
+          'message': response.data['message'] ?? 'Resubmit lembur berhasil.',
+          'data': response.data['data']
+        };
+      }
+      return {'success': false, 'message': 'Data tidak ditemukan.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal resubmit lembur');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
     }
-    return {'success': false, 'message': 'Data tidak ditemukan.'};
-  } on DioException catch (e) {
-    return _handleDioError(e, 'Gagal resubmit lembur');
-  } catch (e) {
-    return {'success': false, 'message': e.toString()};
   }
-}
 
 
   // =========================================================================
@@ -798,7 +876,7 @@ Future<Map<String, dynamic>> resetPassword({
         'foto_surat': await MultipartFile.fromFile(fotoSurat.path, filename: fotoSurat.path.split('/').last),
       });
 
-      final response = await _dio.post('/izin-keluar/start', data: formData);
+      final response = await _dio.post('izin-keluar/start', data: formData);
       return {'success': true, 'message': response.data['message'] ?? 'Berhasil memulai izin', 'statusCode': response.statusCode};
     } on DioException catch (e) {
       return _handleDioError(e, 'Gagal memulai izin keluar');
@@ -817,7 +895,7 @@ Future<Map<String, dynamic>> resetPassword({
         'dokumen_kembali': await MultipartFile.fromFile(dokumenKembali.path, filename: dokumenKembali.path.split('/').last),
       });
 
-      final response = await _dio.post('/izin-keluar/end', data: formData);
+      final response = await _dio.post('izin-keluar/end', data: formData);
       return {
         'success': true, 
         'message': response.data['message'] ?? 'Berhasil menyelesaikan izin', 
@@ -837,7 +915,7 @@ Future<Map<String, dynamic>> resetPassword({
 
   Future<int> fetchUnreadCount() async {
     try {
-      final response = await _dio.get('/notifications');
+      final response = await _dio.get('notifications');
       if (response.statusCode == 200 && response.data != null && response.data['data'] is List) {
         final List notifs = response.data['data'];
         final unread = notifs.where((n) {
@@ -858,7 +936,7 @@ Future<Map<String, dynamic>> resetPassword({
 
   Future<List<NotificationModel>> fetchNotifications() async {
     try {
-      final response = await _dio.get('/notifications');
+      final response = await _dio.get('notifications');
       if (response.statusCode == 200 && response.data != null && response.data['data'] is List) {
         return (response.data['data'] as List)
             .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
@@ -876,7 +954,7 @@ Future<Map<String, dynamic>> resetPassword({
 
   Future<Map<String, dynamic>> markNotificationAsRead(int notificationId) async {
     try {
-      final response = await _dio.put('/notifications/$notificationId/read');
+      final response = await _dio.put('notifications/$notificationId/read');
       if (response.statusCode == 200) {
         return {'success': true, 'message': response.data['message'] ?? 'Notifikasi berhasil ditandai dibaca.'};
       }
@@ -893,18 +971,15 @@ Future<Map<String, dynamic>> resetPassword({
   // =========================================================================
 
   Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_authTokenKey, token);
+    await _storage.write(key: _authTokenKey, value: token);
   }
 
   Future<void> _deleteToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_authTokenKey);
+    await _storage.delete(key: _authTokenKey);
   }
 
   Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_authTokenKey);
+    return await _storage.read(key: _authTokenKey);
   }
 
   Map<String, dynamic> _handleDioError(DioException e, String defaultMessage) {

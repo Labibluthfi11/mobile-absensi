@@ -37,7 +37,24 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
   Future<void> _refreshData() async {
     final provider = Provider.of<AbsensiProvider>(context, listen: false);
-    await provider.fetchMyAbsensi(searchDate: null, month: null, year: null);
+    
+    String? searchDateStr;
+    if (_selectedDate != null) {
+      searchDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+    }
+
+    // Gunakan tahun sekarang jika hanya pilih bulan
+    int? year;
+    if (_selectedMonth != null) {
+      year = DateTime.now().year;
+    }
+
+    await provider.fetchHistoryAbsensi(
+      searchDate: searchDateStr, 
+      month: _selectedMonth, 
+      year: year
+    );
+    
     if (mounted) setState(() {}); 
   }
 

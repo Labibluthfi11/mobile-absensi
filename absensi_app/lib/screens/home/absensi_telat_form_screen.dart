@@ -1,5 +1,6 @@
 import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -119,8 +120,20 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading) return;
+
+    // Premium Haptic Feedback
+    HapticFeedback.mediumImpact();
+
+    // Start loading IMMEDIATELY
+    setState(() => _isLoading = true);
+
+    if (!_formKey.currentState!.validate()) {
+      setState(() => _isLoading = false);
+      return;
+    }
     if (_fileBukti == null) {
+       setState(() => _isLoading = false);
        _showSnackBar('Foto bukti wajib diisi bos!', isSuccess: false);
       return;
     }
@@ -129,11 +142,10 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
     final absensi = widget.absensiHariIni ?? provider.currentDayAbsensi;
 
     if (absensi == null) {
+      setState(() => _isLoading = false);
       _showSnackBar('Data absen masuk ga ketemu, yakin udah absen?', isSuccess: false);
       return;
     }
-
-    setState(() => _isLoading = true);
 
     try {
       await Future.delayed(const Duration(milliseconds: 600));

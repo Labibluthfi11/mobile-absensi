@@ -22,6 +22,9 @@ import 'start_izin_screen.dart';
 import 'end_izin_screen.dart';
 import '../../providers/absensi_provider.dart';
 import '../../providers/izin_keluar_provider.dart';
+import '../../services/notification_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import '../../services/update_service.dart';
 
 const Color kPrimaryColor    = Color(0xFF4F46E5); 
 const Color kBackgroundColor = Color(0xFFF3F4F6); 
@@ -124,6 +127,7 @@ class _HomeContentState extends State<HomeContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadUnreadCount();
       _refreshData();
+      UpdateService.checkForUpdate(context); // Cek update otomatis saat masuk Home
     });
   }
 
@@ -204,10 +208,25 @@ class _HomeContentState extends State<HomeContent> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Layanan Mandiri', style: TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                        child: const Text('Shift 08:00', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: kPrimaryColor)),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                            child: const Text('Shift 08:00', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: kPrimaryColor)),
+                          ),
+                          const SizedBox(width: 8),
+                          // TOMBOL TEST NOTIFIKASI
+                          IconButton(
+                            icon: const Icon(Icons.bug_report_rounded, color: Colors.orange, size: 20),
+                            onPressed: () {
+                              NotificationService().showTestNotification(
+                                title: 'Tes Notifikasi Berhasil! ✅',
+                                body: 'Ini adalah notifikasi percobaan dari kodingan lo Bang.',
+                              );
+                            },
+                          ),
+                        ],
                       )
                     ],
                   ),

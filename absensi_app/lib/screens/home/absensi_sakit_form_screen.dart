@@ -1,13 +1,14 @@
 import 'package:universal_io/io.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
 import 'package:absensi_app/models/absensi_model.dart';
 import 'package:absensi_app/providers/auth_provider.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:absensi_app/services/image_compress_service.dart';
 import 'package:intl/intl.dart';
 
 const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo
@@ -109,6 +110,12 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       if (_tipePengajuan == 'izin') {
         _catatanPanggilanController.text = widget.existingAbsensi!.catatanAdmin ?? '';
       }
+      if (widget.existingAbsensi!.checkInAt != null) {
+        _startDate = DateTime.tryParse(widget.existingAbsensi!.checkInAt!);
+      }
+      if (widget.existingAbsensi!.checkOutAt != null) {
+        _endDate = DateTime.tryParse(widget.existingAbsensi!.checkOutAt!);
+      }
     }
   }
 
@@ -126,10 +133,11 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
   String _formatDate(DateTime? date) => date == null ? 'Pilih tanggal' : DateFormat('dd MMM yyyy').format(date);
 
   Future<void> _pickStartDate() async {
+    final isResubmit = widget.resubmitId != null;
     final picked = await showDatePicker(
       context: context,
       initialDate: _startDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
+      firstDate: isResubmit ? DateTime.now().subtract(const Duration(days: 365)) : DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: kPrimaryColor)), child: child!),
     );
@@ -157,24 +165,13 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
     if (picked != null) setState(() => _endDate = picked);
   }
 
-  Future<File?> _compressImage(File file) async {
-    if (kIsWeb) return file;
-    try {
-      final result = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path, '${file.path}_compressed.jpg', quality: 70, minWidth: 1024, minHeight: 1024,
-      );
-      return result != null ? File(result.path) : file;
-    } catch (e) {
-      return file;
-    }
-  }
 
   Future<void> _takePicture() async {
     Navigator.pop(context);
     try {
       final XFile? img = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
       if (img != null) {
-        final compressed = await _compressImage(File(img.path));
+        final compressed = await ImageCompressService.compressImage(File(img.path));
         if (mounted) setState(() => _pickedFile = compressed);
       }
     } catch (e) { _showSnackBar('Gagal mengambil foto.', isSuccess: false); }
@@ -185,7 +182,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
     try {
       final XFile? img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
       if (img != null) {
-        final compressed = await _compressImage(File(img.path));
+        final compressed = await ImageCompressService.compressImage(File(img.path));
         if (mounted) setState(() => _pickedFile = compressed);
       }
     } catch (e) { _showSnackBar('Gagal memilih gambar.', isSuccess: false); }
@@ -272,26 +269,38 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
 
   Future<void> _submitForm() async {
     final isResubmit = widget.resubmitId != null;
-    final userType = Provider.of<AuthProvider>(context, listen: false).user?.employmentType.toLowerCase();
+    if (_isSubmitting) return;
+
+    // Premium Haptic Feedback
+    HapticFeedback.mediumImpact();
+
+    // Start loading IMMEDIATELY
+    setState(() => _isSubmitting = true);
+
+    final userType = Provider.of<AuthProvider>(context, listen: false).user?.employmentType.toLowerCase() ?? 'freelance';
 
     if (_tipePengajuan == 'cuti' && userType != 'organik') {
+      setState(() => _isSubmitting = false);
       _showSnackBar('Fitur Cuti hanya tersedia untuk karyawan Organik.', isSuccess: false);
       return;
     }
 
     if (!_formKey.currentState!.validate()) {
+      setState(() => _isSubmitting = false);
       _showSnackBar('Periksa kembali form pendaftaran Anda.', isSuccess: false);
       return;
     }
 
     if (_tipePengajuan == 'cuti') {
       if (_startDate == null || _endDate == null) {
+        setState(() => _isSubmitting = false);
         _showSnackBar('Pilih rentang tanggal cuti!', isSuccess: false);
         return;
       }
       if (_potongJatahTahunan) {
         final sisaCuti = Provider.of<AuthProvider>(context, listen: false).user?.sisaCuti ?? 0;
         if (_jumlahHariDipilih > sisaCuti) {
+          setState(() => _isSubmitting = false);
           _showSnackBar('Sisa cuti tidak cukup (Sisa: $sisaCuti, Diajukan: $_jumlahHariDipilih)', isSuccess: false);
           return;
         }
@@ -299,15 +308,16 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
     }
 
     if (!isResubmit && _pickedFile == null) {
+      setState(() => _isSubmitting = false);
       _showSnackBar('Bukti medis/dokumen wajib diunggah!', isSuccess: false);
       return;
     }
     if (isResubmit && _pickedFile == null) {
+      setState(() => _isSubmitting = false);
       _showSnackBar('Harap unggah bukti dokumen terbaru!', isSuccess: false);
       return;
     }
 
-    setState(() => _isSubmitting = true);
     final provider = Provider.of<AbsensiProvider>(context, listen: false);
     Map<String, dynamic> result = {'success': false, 'message': 'Gagal'};
 
@@ -320,16 +330,31 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
           catatan: _catatanController.text,
           catatanPanggilan: _catatanPanggilanController.text,
           tipe: _tipePengajuan,
+          startDate: _startDate,
+          endDate: _endDate,
         );
       } else if (_tipePengajuan == 'sakit') {
-        result = await provider.absenSakit(fileBukti: _pickedFile!, catatan: _catatanController.text);
+        result = await provider.absenSakit(
+          fileBukti: _pickedFile!, 
+          catatan: _catatanController.text,
+          startDate: _startDate,
+          endDate: _endDate,
+        );
       } else if (_tipePengajuan == 'cuti') {
         result = await provider.absenIzin(
-          fileBukti: _pickedFile!, catatan: _catatanController.text, catatanPanggilan: _jenisCuti, startDate: _startDate, endDate: _endDate,
+          fileBukti: _pickedFile!, 
+          catatan: _catatanController.text, 
+          catatanPanggilan: _jenisCuti, 
+          startDate: _startDate, 
+          endDate: _endDate,
         );
       } else {
         result = await provider.absenIzin(
-          fileBukti: _pickedFile!, catatan: _catatanController.text, catatanPanggilan: _catatanPanggilanController.text,
+          fileBukti: _pickedFile!, 
+          catatan: _catatanController.text, 
+          catatanPanggilan: _catatanPanggilanController.text,
+          startDate: _startDate,
+          endDate: _endDate,
         );
       }
 
@@ -443,6 +468,38 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                 ],
               ),
               const SizedBox(height: 32),
+              
+              const Text('Rentang Waktu', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _buildDatePicker(label: 'Mulai', date: _startDate, onTap: _pickStartDate)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildDatePicker(label: 'Selesai', date: _endDate, onTap: _pickEndDate)),
+                ],
+              ),
+              
+              if (_startDate != null && _endDate != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: (_tipePengajuan == 'cuti' && _jumlahHariDipilih > _maxHariJenisCuti) ? Colors.red.shade50 : Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12)
+                  ),
+                  child: Row(
+                    children: [
+                      Icon((_tipePengajuan == 'cuti' && _jumlahHariDipilih > _maxHariJenisCuti) ? Icons.error_rounded : Icons.event_available_rounded, size: 18, color: (_tipePengajuan == 'cuti' && _jumlahHariDipilih > _maxHariJenisCuti) ? Colors.red : Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text((_tipePengajuan == 'cuti' && _jumlahHariDipilih > _maxHariJenisCuti) ? 'Total $_jumlahHariDipilih Hari (Melebihi Batas!)' : 'Total: $_jumlahHariDipilih Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 12, color: (_tipePengajuan == 'cuti' && _jumlahHariDipilih > _maxHariJenisCuti) ? Colors.red.shade700 : Colors.blue.shade700)),
+                      )
+                    ],
+                  ),
+                )
+              ],
+
+              const SizedBox(height: 32),
 
               if (_tipePengajuan == 'cuti') ...[
                 const Text('Rincian Cuti', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
@@ -493,35 +550,6 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-
-                Row(
-                  children: [
-                    Expanded(child: _buildDatePicker(label: 'Mulai', date: _startDate, onTap: _pickStartDate)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildDatePicker(label: 'Selesai', date: _endDate, onTap: _pickEndDate)),
-                  ],
-                ),
-                
-                if (_startDate != null && _endDate != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _jumlahHariDipilih > _maxHariJenisCuti ? Colors.red.shade50 : Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12)
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(_jumlahHariDipilih > _maxHariJenisCuti ? Icons.error_rounded : Icons.event_available_rounded, size: 18, color: _jumlahHariDipilih > _maxHariJenisCuti ? Colors.red : Colors.blue.shade700),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(_jumlahHariDipilih > _maxHariJenisCuti ? 'Total $_jumlahHariDipilih Hari (Melebihi Batas!)' : 'Total Cuti: $_jumlahHariDipilih Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 12, color: _jumlahHariDipilih > _maxHariJenisCuti ? Colors.red.shade700 : Colors.blue.shade700)),
-                        )
-                      ],
-                    ),
-                  )
-                ],
                 const SizedBox(height: 32),
               ],
 

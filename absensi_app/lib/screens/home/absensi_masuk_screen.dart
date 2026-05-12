@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'custom_camera_screen.dart';
+import 'absensi_lembur_screen.dart';
 import 'package:universal_io/io.dart'; 
 import 'dart:async'; 
 import 'dart:math' as math;
 import '../../providers/absensi_provider.dart'; 
 import 'package:intl/intl.dart';
+import '../../services/security_service.dart';
 
 const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo Premium
 const Color kBackgroundColor = Color(0xFFF3F4F6); // Soft gray
@@ -88,6 +91,11 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
     _dateString = DateFormat('EEEE, dd MMMM yyyy').format(DateTime.now());
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
     _checkLocation();
+    
+    // Refresh data absensi biar validasi absen dobel akurat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AbsensiProvider>(context, listen: false).fetchHistoryAbsensi();
+    });
   }
 
   @override
@@ -162,6 +170,9 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
     final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
     if (absensiProvider.isLoading) return;
 
+    // Premium Haptic Feedback
+    HapticFeedback.mediumImpact();
+
     if (_capturedImageFile == null) {
       await _takePicture(absensiProvider);
     } else {
@@ -178,11 +189,24 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
   }
   
   Future<void> _submitAbsenMasuk(AbsensiProvider provider) async {
+    if (provider.currentDayAbsensi != null) {
+      _showFunnyWarningDialog();
+      return;
+    }
+
     if (_currentPosition == null) {
       _showSnackBar('Lokasi blm ke-detect bro. Refresh dulu mending.', isSuccess: false);
       return;
     }
 
+    // 🔥 SECURITY CHECK: Deteksi Mock Location / Fake GPS
+    bool isMock = await SecurityService.isMockLocation();
+    if (isMock || (_currentPosition != null && _currentPosition!.isMocked)) {
+      _showSnackBar('Hayo loh! Matiin Fake GPS nya dulu bos, jangan curang!', isSuccess: false);
+      return;
+    }
+
+    // Set loading state IMMEDIATELY at the start of submission
     provider.setIsLoading(true);
     try {
       await Future.delayed(const Duration(milliseconds: 600)); // smooth ux delay
@@ -197,8 +221,12 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
         if (result['success'] == true) {
           _showSuccessDialog();
         } else {
+          // Cek status code 403 (Hari Libur)
+          if (result['statusCode'] == 403) {
+            _showHolidayDialog(result['message'] ?? 'Hari ini adalah hari libur.');
+          }
           // Cek apakah ini error jaringan "bapuk"
-          if (result['isNetworkError'] == true) {
+          else if (result['isNetworkError'] == true) {
             _showBapukDialog(result['message']);
           } else {
             _showSnackBar(result['message'] ?? 'Duh, absen gagal rek.', isSuccess: false);
@@ -212,6 +240,111 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
     } finally {
       if (mounted) provider.setIsLoading(false);
     }
+  }
+
+  void _showFunnyWarningDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle),
+                  child: Icon(Icons.warning_amber_rounded, color: Colors.orange.shade500, size: 60),
+                ),
+                const SizedBox(height: 20),
+                const Text('Waduh!', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)), textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                const Text('bro berpikir dia siapa mau absen dua kali mikir kids!!', style: TextStyle(fontFamily: 'Poppins', color: Colors.grey, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade500, padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0
+                    ),
+                    child: const Text('Oke Oke.. Ampun', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showHolidayDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white, 
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: Colors.amber.shade50, shape: BoxShape.circle),
+                  child: Icon(Icons.calendar_today_rounded, color: Colors.amber.shade600, size: 60),
+                ),
+                const SizedBox(height: 20),
+                const Text('Hari Libur Terdeteksi', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)), textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                Text(message, style: const TextStyle(fontFamily: 'Poppins', color: Colors.grey, fontSize: 14, height: 1.5), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close dialog
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => AbsensiLemburScreen()));
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF59E0B), // kLemburColor
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0
+                        ),
+                        child: const Text('Buka Menu Lembur', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Tutup', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showBapukDialog(String? message) {

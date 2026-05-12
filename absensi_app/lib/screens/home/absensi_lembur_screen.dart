@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:universal_io/io.dart';
@@ -85,6 +86,39 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
   final TextEditingController _jamMulaiController = TextEditingController();
   final TextEditingController _jamSelesaiController = TextEditingController();
   bool _istirahatChecked = false;
+  int? _resubmitId;
+  bool _isInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInitialized) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is int) {
+        _resubmitId = args;
+        _preFillForm();
+      }
+      _isInitialized = true;
+    }
+  }
+
+  void _preFillForm() {
+    if (_resubmitId == null) return;
+
+    final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
+    try {
+      final existing = absensiProvider.myAbsensiList.firstWhere(
+        (a) => a.id == _resubmitId,
+      );
+
+      _jamMulaiController.text = existing.lemburStart ?? '';
+      _jamSelesaiController.text = existing.lemburEnd ?? '';
+      _istirahatChecked = existing.lemburRest ?? false;
+      _keteranganController.text = existing.lemburKeterangan ?? '';
+    } catch (e) {
+      debugPrint('Error pre-filling form: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -165,7 +199,14 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
 
     if (absensiProvider.isLoading) return;
 
+    // Premium Haptic Feedback
+    HapticFeedback.mediumImpact();
+
+    // Start loading IMMEDIATELY
+    absensiProvider.setIsLoading(true);
+
     if (_hasilKerjaFiles.isEmpty) {
+      absensiProvider.setIsLoading(false);
       _showSnackBar('Wajib upload minimal 1 foto bukti kerja lembur!',
           isSuccess: false);
       return;
@@ -176,6 +217,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
         _jamSelesaiController.text.trim().isNotEmpty;
 
     if (!isFormValid) {
+      absensiProvider.setIsLoading(false);
       _showSnackBar(
           'Lengkapi form lembur (Jam Mulai, Selesai, dan Keterangan)',
           isSuccess: false);
@@ -183,18 +225,34 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
     }
 
     try {
-      absensiProvider.setIsLoading(true);
       absensiProvider.setErrorMessage(null);
       await Future.delayed(const Duration(milliseconds: 600));
 
-      final result = await absensiProvider.submitLembur(
-        jamMulai: _jamMulaiController.text.trim(),
-        jamSelesai: _jamSelesaiController.text.trim(),
-        istirahat: _istirahatChecked,
-        keterangan: _keteranganController.text.trim(),
-        goals: _goalsController.text.trim(),
-        hasilKerjaFiles: _hasilKerjaFiles,
-      );
+      Map<String, dynamic> result;
+      
+      if (_resubmitId != null) {
+        // Mode Perbaikan (Resubmit)
+        result = await absensiProvider.resubmitAbsensi(
+          absensiId: _resubmitId!,
+          jamMulai: _jamMulaiController.text.trim(),
+          jamSelesai: _jamSelesaiController.text.trim(),
+          istirahat: _istirahatChecked,
+          catatan: _keteranganController.text.trim(),
+          goals: _goalsController.text.trim(),
+          hasilKerjaFiles: _hasilKerjaFiles,
+          tipe: 'lembur',
+        );
+      } else {
+        // Mode Pengajuan Baru
+        result = await absensiProvider.submitLembur(
+          jamMulai: _jamMulaiController.text.trim(),
+          jamSelesai: _jamSelesaiController.text.trim(),
+          istirahat: _istirahatChecked,
+          keterangan: _keteranganController.text.trim(),
+          goals: _goalsController.text.trim(),
+          hasilKerjaFiles: _hasilKerjaFiles,
+        );
+      }
 
       if (result['success'] == true && mounted) {
         _showSuccessDialog();
@@ -284,8 +342,8 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                       color: Colors.green.shade500, size: 60),
                 ),
                 const SizedBox(height: 20),
-                const Text('Pengajuan Lembur Tercatat!',
-                    style: TextStyle(
+                Text(_resubmitId != null ? 'Perbaikan Lembur Tercatat!' : 'Pengajuan Lembur Tercatat!',
+                    style: const TextStyle(
                         fontFamily: 'Poppins',
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -340,8 +398,8 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
     return Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: const Text('Pengajuan Lembur',
-            style: TextStyle(
+        title: Text(_resubmitId != null ? 'Perbaikan Lembur' : 'Pengajuan Lembur',
+            style: const TextStyle(
                 fontFamily: 'Poppins',
                 color: Color(0xFF1F2937),
                 fontWeight: FontWeight.w700,
@@ -384,19 +442,19 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                         color: Colors.white, size: 32),
                   ),
                   const SizedBox(width: 16),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Formulir Lembur',
-                            style: TextStyle(
+                        Text(_resubmitId != null ? 'Perbaiki Lemburan' : 'Formulir Lembur',
+                            style: const TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white)),
-                        SizedBox(height: 4),
-                        Text('Isi detail lembur hari ini',
-                            style: TextStyle(
+                        const SizedBox(height: 4),
+                        Text(_resubmitId != null ? 'Benerin data yang salah ya bos' : 'Isi detail lembur hari ini',
+                            style: const TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 13,
                                 color: Colors.white70,
@@ -628,7 +686,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                                   ? Colors.grey.shade500
                                   : Colors.white),
                           const SizedBox(width: 8),
-                          Text('KIRIM PENGAJUAN LEMBUR',
+                          Text(_resubmitId != null ? 'SIMPAN PERBAIKAN LEMBUR' : 'KIRIM PENGAJUAN LEMBUR',
                               style: TextStyle(
                                   fontFamily: 'Poppins',
                                   fontSize: 15,
