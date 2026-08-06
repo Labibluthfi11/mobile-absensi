@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
+import '../../core/exceptions/app_exception.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -126,15 +127,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         }
       } catch (e) {
         if (!mounted) return;
-        final errorMsg = e.toString().toLowerCase();
-        if (errorMsg.contains('network') || 
-            errorMsg.contains('socket') || 
-            errorMsg.contains('timeout') || 
-            errorMsg.contains('connection') ||
-            errorMsg.contains('bapuk')) {
-          _showFunnyNetworkErrorDialog();
+        print('Login error: $e');
+        if (e is AppException) {
+          if (e.isNetworkError) {
+            _showFunnyNetworkErrorDialog();
+          } else if (e.statusCode != null && e.statusCode! >= 500) {
+            _showCustomAlert('Aduh, server lagi bermasalah nih. Coba lagi nanti ya!');
+          } else if (e.statusCode == 401) {
+            _showCustomAlert('salah email kalo engga password yaa anak baik coba periksa lagi lebih teliti gitu');
+          } else {
+            _showCustomAlert(e.message);
+          }
         } else {
-          _showCustomAlert('salah email kalo engga password yaa anak baik coba periksa lagi lebih teliti gitu');
+          _showCustomAlert('Terjadi kesalahan yang tidak terduga. Coba lagi ya!');
         }
       }
     }

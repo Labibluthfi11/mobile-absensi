@@ -464,7 +464,15 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
     final bool canSubmit = _isPhotoTaken && locationReady;
     final bool isButtonDisabled = absensiProvider.isLoading || !canSubmit;
 
-    return Scaffold(
+    return PopScope(
+      canPop: !absensiProvider.isLoading,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sedang mengunggah absensi, harap tunggu...')),
+        );
+      },
+      child: Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
         title: const Text('Absensi Pulang', style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF1F2937), fontWeight: FontWeight.w700, fontSize: 18)),
@@ -696,6 +704,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

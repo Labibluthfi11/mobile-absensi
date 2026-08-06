@@ -16,17 +16,17 @@ const Color kBackgroundColor = Color(0xFFF3F4F6); // Soft gray
 const Color kCardColor = Colors.white;
 
 const Map<String, Map<String, dynamic>> _cutiConfig = {
-  'cuti_tahunan':   {'label': 'Cuti Tahunan',             'maxDays': 12,  'potongJatah': true},
-  'cuti_melahirkan':{'label': 'Cuti Melahirkan',           'maxDays': 90,  'potongJatah': false},
-  'cuti_keguguran': {'label': 'Cuti Keguguran',            'maxDays': 45,  'potongJatah': false},
-  'cuti_haji':      {'label': 'Cuti Ibadah Haji',          'maxDays': 12,  'potongJatah': true},
-  'cuti_umroh':     {'label': 'Cuti Ibadah Umroh',         'maxDays': 12,  'potongJatah': true},
-  'cuti_menikah':   {'label': 'Cuti Menikah',              'maxDays': 3,   'potongJatah': false},
-  'cuti_khitanan':  {'label': 'Cuti Khitanan Anak',        'maxDays': 2,   'potongJatah': false},
-  'cuti_baptis':    {'label': 'Cuti Baptis Anak',          'maxDays': 2,   'potongJatah': false},
-  'cuti_meninggal': {'label': 'Cuti Meninggal Keluarga',   'maxDays': 2,   'potongJatah': false},
-  'change_off':     {'label': 'Change Off',                'maxDays': 1,   'potongJatah': false},
-  'unpaid_leave':   {'label': 'Unpaid Leave',              'maxDays': 30,  'potongJatah': false},
+  'cuti_tahunan':   {'label': 'Cuti Tahunan',             'maxDays': 12,  'potongJatah': true,  'gratisHari': 0},
+  'cuti_melahirkan':{'label': 'Cuti Melahirkan',           'maxDays': 90,  'potongJatah': false, 'gratisHari': 0},
+  'cuti_keguguran': {'label': 'Cuti Keguguran',            'maxDays': 45,  'potongJatah': false, 'gratisHari': 0},
+  'cuti_haji':      {'label': 'Cuti Ibadah Haji',          'maxDays': 60,  'potongJatah': true,  'gratisHari': 14},
+  'cuti_umroh':     {'label': 'Cuti Ibadah Umroh',         'maxDays': 60,  'potongJatah': true,  'gratisHari': 12},
+  'cuti_menikah':   {'label': 'Cuti Menikah',              'maxDays': 3,   'potongJatah': false, 'gratisHari': 0},
+  'cuti_khitanan':  {'label': 'Cuti Khitanan Anak',        'maxDays': 2,   'potongJatah': false, 'gratisHari': 0},
+  'cuti_baptis':    {'label': 'Cuti Baptis Anak',          'maxDays': 2,   'potongJatah': false, 'gratisHari': 0},
+  'cuti_meninggal': {'label': 'Cuti Meninggal Keluarga',   'maxDays': 2,   'potongJatah': false, 'gratisHari': 0},
+  'change_off':     {'label': 'Change Off',                'maxDays': 1,   'potongJatah': false, 'gratisHari': 0},
+  'unpaid_leave':   {'label': 'Unpaid Leave',              'maxDays': 30,  'potongJatah': false, 'gratisHari': 0},
 };
 
 // ----------------------------------------------------------------------
@@ -126,11 +126,27 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
     super.dispose();
   }
 
-  int get _jumlahHariDipilih => (_startDate == null || _endDate == null) ? 0 : _endDate!.difference(_startDate!).inDays + 1;
+  int get _jumlahHariDipilih {
+    if (_startDate == null || _endDate == null) return 0;
+    int count = 0;
+    DateTime current = _startDate!;
+    while (!current.isAfter(_endDate!)) {
+      if (_isWorkingDay(current)) {
+        count++;
+      }
+      current = current.add(const Duration(days: 1));
+    }
+    return count;
+  }
   int get _maxHariJenisCuti => _cutiConfig[_jenisCuti]?['maxDays'] as int? ?? 30;
   bool get _potongJatahTahunan => _cutiConfig[_jenisCuti]?['potongJatah'] as bool? ?? false;
-
+  int get _gratisHari => _cutiConfig[_jenisCuti]?['gratisHari'] as int? ?? 0;
   String _formatDate(DateTime? date) => date == null ? 'Pilih tanggal' : DateFormat('dd MMM yyyy').format(date);
+
+  bool _isWorkingDay(DateTime day) {
+    // 0 = Monday, 6 = Sunday. In Dart: 1 = Monday, 7 = Sunday.
+    return day.weekday != DateTime.saturday && day.weekday != DateTime.sunday;
+  }
 
   Future<void> _pickStartDate() async {
     final isResubmit = widget.resubmitId != null;
@@ -139,12 +155,14 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       initialDate: _startDate ?? DateTime.now(),
       firstDate: isResubmit ? DateTime.now().subtract(const Duration(days: 365)) : DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
+      selectableDayPredicate: _isWorkingDay,
       builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: kPrimaryColor)), child: child!),
     );
     if (picked != null) {
       setState(() {
         _startDate = picked;
-        if (_endDate != null && _endDate!.isBefore(picked)) _endDate = null;
+        // Reset End Date when Start Date changes
+        _endDate = null;
       });
     }
   }
@@ -154,12 +172,23 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       _showSnackBar('Pilih tanggal mulai terlebih dahulu.', isSuccess: false);
       return;
     }
-    final maxEndDate = _startDate!.add(Duration(days: _maxHariJenisCuti - 1));
+    
+    // Calculate max end date considering only working days
+    DateTime maxEndDate = _startDate!;
+    int daysAdded = 0;
+    while (daysAdded < _maxHariJenisCuti - 1) {
+      maxEndDate = maxEndDate.add(const Duration(days: 1));
+      if (_isWorkingDay(maxEndDate)) {
+        daysAdded++;
+      }
+    }
+
     final picked = await showDatePicker(
       context: context,
       initialDate: _endDate ?? _startDate!,
       firstDate: _startDate!,
       lastDate: maxEndDate,
+      selectableDayPredicate: _isWorkingDay,
       builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: kPrimaryColor)), child: child!),
     );
     if (picked != null) setState(() => _endDate = picked);
@@ -298,13 +327,19 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
         return;
       }
       if (_potongJatahTahunan) {
-        final sisaCuti = Provider.of<AuthProvider>(context, listen: false).user?.sisaCuti ?? 0;
-        if (_jumlahHariDipilih > sisaCuti) {
-          setState(() => _isSubmitting = false);
-          _showSnackBar('Sisa cuti tidak cukup (Sisa: $sisaCuti, Diajukan: $_jumlahHariDipilih)', isSuccess: false);
-          return;
-        }
-      }
+  final sisaCuti = Provider.of<AuthProvider>(context, listen: false).user?.sisaCuti ?? 0;
+  final hariYangPotong = (_jumlahHariDipilih - _gratisHari).clamp(0, _jumlahHariDipilih);
+  if (hariYangPotong > sisaCuti) {
+    setState(() => _isSubmitting = false);
+    _showSnackBar(
+      _gratisHari > 0
+        ? 'Sisa cuti tidak cukup. $_gratisHari hari gratis, ${hariYangPotong} hari potong cuti. Sisa cuti: $sisaCuti hari.'
+        : 'Sisa cuti tidak cukup (Sisa: $sisaCuti, Diajukan: $_jumlahHariDipilih)',
+      isSuccess: false
+    );
+    return;
+  }
+}
     }
 
     if (!isResubmit && _pickedFile == null) {
@@ -360,14 +395,29 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
 
       if (mounted) {
         if (result['success'] == true) {
-          _showSnackBar(result['message'] ?? 'Berhasil mengumpulkan!', isSuccess: true);
-          if (isResubmit) {
-            Navigator.of(context).pop(true);
-          } else {
-            _catatanController.clear();
-            _catatanPanggilanController.clear();
-            setState(() { _pickedFile = null; _startDate = null; _endDate = null; });
-          }
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => AlertDialog(
+              title: const Text('Berhasil', style: TextStyle(fontFamily: 'Poppins')),
+              content: Text(result['message'] ?? 'Data terkirim.', style: const TextStyle(fontFamily: 'Poppins')),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Tutup dialog
+                    if (isResubmit) {
+                      Navigator.of(context).pop(true);
+                    } else {
+                      _catatanController.clear();
+                      _catatanPanggilanController.clear();
+                      setState(() { _pickedFile = null; _startDate = null; _endDate = null; });
+                    }
+                  },
+                  child: const Text('OK', style: TextStyle(fontFamily: 'Poppins')),
+                ),
+              ],
+            ),
+          );
         } else {
           // Cek apakah ini error jaringan "bapuk"
           if (result['isNetworkError'] == true) {
@@ -434,9 +484,18 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
     final userType = Provider.of<AuthProvider>(context).user?.employmentType.toLowerCase() ?? 'freelance';
     final sisaCuti = Provider.of<AuthProvider>(context).user?.sisaCuti ?? 12;
 
+    if (userType == 'organik' && _tipePengajuan == 'izin') _tipePengajuan = 'sakit';
     if (userType != 'organik' && _tipePengajuan == 'cuti') _tipePengajuan = 'sakit';
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_isSubmitting,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sedang mengunggah pengajuan, harap tunggu...')),
+        );
+      },
+      child: Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
         title: Text(isResubmit ? 'Re-Submit Pengajuan' : 'Form Pengajuan', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 18)),
@@ -459,8 +518,10 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
               Row(
                 children: [
                   Expanded(child: _buildChoiceCard('Sakit', 'sakit', const Color(0xFFEF4444), Icons.local_hospital_rounded)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildChoiceCard('Izin', 'izin', const Color(0xFF8B5CF6), Icons.event_note_rounded)),
+                  if (userType != 'organik') ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildChoiceCard('Izin', 'izin', const Color(0xFF8B5CF6), Icons.event_note_rounded)),
+                  ],
                   if (userType == 'organik') ...[
                     const SizedBox(width: 12),
                     Expanded(child: _buildChoiceCard('Cuti', 'cuti', const Color(0xFF10B981), Icons.beach_access_rounded)),
@@ -534,8 +595,13 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(_potongJatahTahunan ? 'Memotong jatah cuti' : 'Tidak memotong cuti', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: _potongJatahTahunan ? Colors.orange.shade800 : Colors.green.shade800, fontSize: 13)),
+                            Text(
+                              _gratisHari > 0
+                                ? '$_gratisHari hari pertama gratis, sisanya potong cuti tahunan. Maks. $_maxHariJenisCuti hari.'
+                                : 'Maks. pengajuan $_maxHariJenisCuti hari.',
+                              style: TextStyle(fontFamily: 'Poppins', color: _potongJatahTahunan ? Colors.orange.shade700 : Colors.green.shade700, fontSize: 12),
+                            ),
                             const SizedBox(height: 2),
-                            Text('Maks. pengajuan $_maxHariJenisCuti hari.', style: TextStyle(fontFamily: 'Poppins', color: _potongJatahTahunan ? Colors.orange.shade700 : Colors.green.shade700, fontSize: 12)),
                             if (_potongJatahTahunan) ...[
                               const SizedBox(height: 6),
                               Container(
@@ -649,6 +715,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 

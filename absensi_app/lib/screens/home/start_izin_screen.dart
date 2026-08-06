@@ -52,6 +52,8 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
         provider.ubahStatusIzinBerjalan(true);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Izin keluar berhasil diajukan!'), backgroundColor: Colors.green));
         Navigator.pop(context);
+      } else if (res['statusCode'] == 403) {
+        _showLimitDialog(res['message'] ?? 'Anda tidak diizinkan melakukan ini.');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Gagal mengajukan izin.')));
       }
@@ -60,6 +62,57 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
     } finally {
       provider.setLoading(false);
     }
+  }
+
+  void _showLimitDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.warning_amber_rounded, color: Colors.red.shade600, size: 48),
+                ),
+                const SizedBox(height: 20),
+                const Text('Yah, Izin Ditolak!', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87), textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                Text(message, style: const TextStyle(fontFamily: 'Poppins', color: Colors.black54, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('OK, Mengerti', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override

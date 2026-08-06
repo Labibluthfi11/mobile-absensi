@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:intl/intl.dart';
-import 'package:crypto/crypto.dart';
 
 import '../core/constants/api_constants.dart';
 import '../models/user_model.dart';
@@ -31,19 +30,12 @@ class ApiService {
   ),
 );
     
-    // SSL Pinning Implementation
     _dio.httpClientAdapter = IOHttpClientAdapter(
-      validateCertificate: (cert, host, port) {
-        if (cert == null) return false;
-        
-        // SHA-256 Fingerprint dari absensi.anselmudaberkarya.my.id
-        const String allowedFingerprint = "a25ee93cd1739e606993586a3e912ef5a903a08a11bf7e165695225dbb3a50d7";
-        
-        // Hitung fingerprint dari sertifikat yang diterima
-        final serverFingerprint = sha256.convert(cert.der).bytes.map((e) => e.toRadixString(16).padLeft(2, '0')).join();
-        
-        // Validasi: Harus cocok dengan pin yang kita simpan
-        return serverFingerprint == allowedFingerprint;
+      createHttpClient: () {
+        final client = HttpClient();
+        client.badCertificateCallback =
+            (X509Certificate cert, String host, int port) => true;
+        return client;
       },
     );
 
@@ -283,7 +275,7 @@ Future<Map<String, dynamic>> resetPassword({
         'id_karyawan': idKaryawan,
         'departemen': departemen,
         'employment_type': employmentType,
-        '_method': 'PUT',
+        
       });
 
       if (profilePhoto != null) {
@@ -746,7 +738,7 @@ Future<Map<String, dynamic>> resetPassword({
         'keterangan_izin_sakit': catatan,
         'keterangan': catatan,
         'status': 'pending',
-        '_method': 'PUT',
+        
         if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
         if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
@@ -779,7 +771,7 @@ Future<Map<String, dynamic>> resetPassword({
         'catatan_panggilan': catatanPanggilan,
         'tipe': 'izin',
         'status': 'pending',
-        '_method': 'PUT',
+        
         if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
         if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
       });
@@ -819,7 +811,7 @@ Future<Map<String, dynamic>> resetPassword({
         'keterangan': keterangan,
         'keterangan_goals': goals,
         'status': 'pending',
-        '_method': 'PUT',
+        
       });
 
       // Upload multiple files

@@ -451,7 +451,15 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
     final Color buttonColor = hasImage ? kSuccessColor : kPrimaryColor;
     final bool isButtonDisabled = absensiProvider.isLoading || (hasImage && !locationReady);
 
-    return Scaffold(
+    return PopScope(
+      canPop: !absensiProvider.isLoading,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sedang mengunggah absensi, harap tunggu...')),
+        );
+      },
+      child: Scaffold(
       backgroundColor: kBackgroundColor, 
       appBar: AppBar(
         title: const Text('Absensi Masuk', style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF1F2937), fontWeight: FontWeight.w700, fontSize: 18)),
@@ -578,6 +586,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

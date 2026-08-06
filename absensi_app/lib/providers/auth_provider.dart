@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import '../api/api.service.dart'; 
 import '../models/user_model.dart'; 
 import 'dart:convert';
+import '../core/exceptions/app_exception.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
@@ -97,18 +98,24 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = result['message'] ?? 'Login gagal.';
         _isLoading = false;
         notifyListeners();
-        throw Exception(_errorMessage); 
+        throw AppException(
+          message: _errorMessage!,
+          statusCode: result['statusCode'] as int?,
+          isNetworkError: result['isNetworkError'] == true,
+        );
       }
+    } on AppException {
+      rethrow;
     } on DioException catch (e) {
       _isLoading = false;
       _errorMessage = _handleDioError(e);
       notifyListeners();
-      throw Exception(_errorMessage); 
+      throw AppException(message: _errorMessage!);
     } catch (e) {
       _isLoading = false;
       _errorMessage = e.toString();
       notifyListeners();
-      throw Exception(_errorMessage); 
+      throw AppException(message: _errorMessage!);
     }
   }
 
@@ -155,18 +162,24 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = result['message'] ?? 'Registrasi gagal.';
         _isLoading = false;
         notifyListeners();
-        throw Exception(_errorMessage);
+        throw AppException(
+          message: _errorMessage!,
+          statusCode: result['statusCode'] as int?,
+          isNetworkError: result['isNetworkError'] == true,
+        );
       }
+    } on AppException {
+      rethrow;
     } on DioException catch (e) {
       _isLoading = false;
       _errorMessage = _handleDioError(e);
       notifyListeners();
-      throw Exception(_errorMessage);
+      throw AppException(message: _errorMessage!);
     } catch (e) {
       _isLoading = false;
       _errorMessage = e.toString();
       notifyListeners();
-      throw Exception(_errorMessage);
+      throw AppException(message: _errorMessage!);
     }
   }
 

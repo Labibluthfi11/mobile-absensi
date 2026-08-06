@@ -68,9 +68,9 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           icon: const Icon(Icons.warning_rounded, color: Colors.redAccent, size: 64),
-          title: const Text('Peringatan Pelanggaran!', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Izin Diselesaikan', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
           content: const Text(
-            'Izin ditarik namun melewati batas maksimal 2 Jam.\n\nStatus absensi Anda telah dicatat oleh sistem sebagai Pelanggaran!',
+            'Izin Keluar diselesaikan, namun lewat batas maksimal 2 jam. Ini tercatat sebagai Pelanggaran.\n\nKeputusan mengenai sanksi atau tindakan selanjutnya akan ditentukan secara manual oleh admin dan akan diinformasikan melalui notifikasi terpisah.',
              textAlign: TextAlign.center,
           ),
           actions: [
