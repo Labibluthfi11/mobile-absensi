@@ -5,12 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:universal_io/io.dart';
 import 'dart:ui';
 import 'package:image/image.dart' as img;
-
-// Warna premium
-const Color kPrimaryColor   = Color(0xFF152C5C);
-const Color kSuccessColor   = Color(0xFF10B981);
-const Color kSecondaryColor = Color(0xFF3B82F6);
-const Color kErrorColor     = Color(0xFFEF4444);
+import 'package:absensi_app/core/app_colors.dart';
 
 class CustomCameraScreen extends StatefulWidget {
   final bool useBackCamera;
@@ -455,7 +450,7 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
                   child: _isTakingPicture
                       ? const Padding(
                           padding: EdgeInsets.all(6.0),
-                          child: CircularProgressIndicator(color: kPrimaryColor, strokeWidth: 3),
+                          child: CircularProgressIndicator(color: AppColors.kPrimaryCustom, strokeWidth: 3),
                       )
                       : null,
                 ),
@@ -559,11 +554,11 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               decoration: BoxDecoration(
-                                color: kSuccessColor,
+                                color: AppColors.kSuccessColor,
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: kSuccessColor.withOpacity(0.4),
+                                    color: AppColors.kSuccessColor.withOpacity(0.4),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   )
@@ -628,7 +623,7 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor: isError ? kErrorColor : kSuccessColor,
+        backgroundColor: isError ? AppColors.kErrorColor : AppColors.kSuccessColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),

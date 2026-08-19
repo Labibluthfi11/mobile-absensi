@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'package:absensi_app/core/app_colors.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
@@ -20,14 +21,12 @@ import 'jadwal_lembur_screen.dart';
 import 'absensi_lembur_screen.dart';
 import 'start_izin_screen.dart';
 import 'end_izin_screen.dart';
+import 'half_day_leave_screen.dart';
 import '../../providers/absensi_provider.dart';
 import '../../providers/izin_keluar_provider.dart';
 import '../../services/notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../services/update_service.dart';
-
-const Color kPrimaryColor    = Color(0xFF4F46E5); 
-const Color kBackgroundColor = Color(0xFFF3F4F6); 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,12 +38,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  static final List<Widget> _widgetOptions = <Widget>[
-    const HomeContent(),
-    const AttendanceHistoryScreen(),
-    const SakitFormScreen(),
-    const ProfileScreen(),
-  ];
+  late final List<Widget> _widgetOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      const HomeContent(),
+      const AttendanceHistoryScreen(),
+      const SakitFormScreen(),
+      const ProfileScreen(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -58,11 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!authProvider.isAuthenticated) {
       Future.microtask(() => Navigator.of(context).pushReplacementNamed('/login'));
-      return Scaffold(body: Center(child: CircularProgressIndicator(color: kPrimaryColor)));
+      return Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.kPrimaryColor)));
     }
 
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       body: _widgetOptions.elementAt(_selectedIndex),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -80,13 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
             child: GNav(
               gap: 8,
-              activeColor: kPrimaryColor,
+              activeColor: AppColors.kPrimaryColor,
               iconSize: 26,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               duration: const Duration(milliseconds: 300),
-              tabBackgroundColor: kPrimaryColor.withOpacity(0.12),
+              tabBackgroundColor: AppColors.kPrimaryColor.withOpacity(0.12),
               color: Colors.grey.shade400,
-              textStyle: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, color: kPrimaryColor, fontSize: 13),
+              textStyle: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, color: AppColors.kPrimaryColor, fontSize: 13),
               tabs: const [
                 GButton(icon: Icons.dashboard_rounded, text: 'Home'),
                 GButton(icon: Icons.receipt_long_rounded, text: 'Riwayat'),
@@ -126,8 +131,9 @@ class _HomeContentState extends State<HomeContent> {
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _getTime());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadUnreadCount();
+      context.read<AuthProvider>().refreshProfile(); // 🔥 Panggil refreshProfile langsung
       _refreshData();
-      UpdateService.checkForUpdate(context); // Cek update otomatis saat masuk Home
+      UpdateService.checkForUpdate(context);
     });
   }
 
@@ -186,7 +192,7 @@ class _HomeContentState extends State<HomeContent> {
 
     return RefreshIndicator(
       onRefresh: _refreshData,
-      color: kPrimaryColor,
+      color: AppColors.kPrimaryColor,
       backgroundColor: Colors.white,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -207,13 +213,13 @@ class _HomeContentState extends State<HomeContent> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Layanan Mandiri', style: TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                      const Text('Layanan Mandiri', style: TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.kTextPrimary)),
                       Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                            child: const Text('Shift 08:00', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: kPrimaryColor)),
+                            decoration: BoxDecoration(color: AppColors.kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                            child: const Text('Shift 08:00', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.kPrimaryColor)),
                           ),
                           const SizedBox(width: 8),
                           // TOMBOL TEST NOTIFIKASI
@@ -273,40 +279,47 @@ class _HomeContentState extends State<HomeContent> {
                       _buildQuickAction(
                         icon: Icons.login_rounded,
                         label: 'Masuk',
-                        color: const Color(0xFF10B981),
+                        color: AppColors.kSuccessColor,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiMasukScreen())),
                       ),
                       _buildQuickAction(
                         icon: Icons.logout_rounded,
                         label: 'Pulang',
-                        color: const Color(0xFFEF4444),
+                        color: AppColors.kErrorColor,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiPulangScreen(lembur: false))),
                       ),
                       _buildQuickAction(
                         icon: Icons.more_time_rounded,
                         label: 'Lembur',
-                        color: const Color(0xFFF59E0B),
+                        color: AppColors.kLemburColor,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiLemburScreen())),
                       ),
                       if (user?.employmentType?.toLowerCase() != 'organik')
                         _buildQuickAction(
                           icon: Icons.timer_off_rounded,
                           label: 'Telat',
-                          color: const Color(0xFFF59E0B),
+                          color: AppColors.kLemburColor,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsensiTelatFormScreen())),
                         ),
                       _buildQuickAction(
                         icon: Icons.masks_rounded,
                         label: 'Pengajuan',
-                        color: const Color(0xFF8B5CF6),
+                        color: AppColors.kPurpleColor,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SakitFormScreen())),
                       ),
                       _buildQuickAction(
                         icon: Icons.event_available_rounded,
                         label: 'Lembur\nTerjadwal',
-                        color: const Color(0xFFF97316),
+                        color: AppColors.kOrangeColor,
                         onTap: () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) => const JadwalLemburScreen())),
+                      ),
+                      _buildQuickAction(
+                        icon: Icons.timer_rounded,
+                        label: 'Izin\n1/2 Hari',
+                        color: AppColors.kSuccessColor,
+                        onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const HalfDayLeaveScreen())),
                       ),
                     ],
                   ),
@@ -334,7 +347,7 @@ class _HomeContentState extends State<HomeContent> {
     return Container(
       padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 30),
       decoration: const BoxDecoration(
-        color: kPrimaryColor,
+        color: AppColors.kPrimaryColor,
         borderRadius: BorderRadius.only(bottomLeft: Radius.circular(36), bottomRight: Radius.circular(36)),
         gradient: LinearGradient(
           colors: [Color(0xFF4F46E5), Color(0xFF312E81)],
@@ -364,7 +377,7 @@ class _HomeContentState extends State<HomeContent> {
                            ? NetworkImage(user.profilePhotoUrl) 
                            : null,
                        child: (user == null || user.profilePhotoUrl == null || user.profilePhotoUrl.isEmpty)
-                           ? Text(userName.isNotEmpty ? userName[0].toUpperCase() : 'U', style: const TextStyle(color: kPrimaryColor, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins'))
+                           ? Text(userName.isNotEmpty ? userName[0].toUpperCase() : 'U', style: const TextStyle(color: AppColors.kPrimaryColor, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins'))
                            : null,
                      ),
                    ),
@@ -398,9 +411,9 @@ class _HomeContentState extends State<HomeContent> {
                               child: Container(
                                 padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFEF4444), 
+                                  color: AppColors.kErrorColor, 
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: const Color(0xFF4F46E5), width: 2)
+                                  border: Border.all(color: AppColors.kPrimaryColor, width: 2)
                                 ),
                                 child: Text('${count > 9 ? '9+' : count}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, height: 1)),
                               ),
@@ -436,8 +449,8 @@ class _HomeContentState extends State<HomeContent> {
                         children: [
                           Container(
                             padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                            child: const Icon(Icons.account_balance_wallet_rounded, color: kPrimaryColor, size: 20),
+                            decoration: BoxDecoration(color: AppColors.kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.kPrimaryColor, size: 20),
                           ),
                           const SizedBox(width: 8),
                           Text('Sisa Cuti Tahunan', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey.shade600, fontSize: 13)),
@@ -447,7 +460,7 @@ class _HomeContentState extends State<HomeContent> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('${user.sisaCuti ?? 12}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w800, color: Color(0xFF1F2937), fontSize: 32, height: 1)),
+                          Text('${user.sisaCuti ?? 12}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w800, color: AppColors.kTextPrimary, fontSize: 32, height: 1)),
                           const Padding(
                             padding: EdgeInsets.only(bottom: 4.0, left: 6.0),
                             child: Text('Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 15)),
@@ -464,7 +477,7 @@ class _HomeContentState extends State<HomeContent> {
                     children: [
                       Text('Terpakai', style: TextStyle(fontFamily: 'Poppins', color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 6),
-                      Text('${user.totalCutiDiambil ?? 0} Hari', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: kPrimaryColor, fontSize: 18)),
+                      Text('${user.totalCutiDiambil ?? 0} Hari', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: AppColors.kPrimaryColor, fontSize: 18)),
                     ],
                   )
                 ],
@@ -483,8 +496,8 @@ class _HomeContentState extends State<HomeContent> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle),
-                    child: const Icon(Icons.calendar_month_rounded, color: kPrimaryColor, size: 28),
+                    decoration: BoxDecoration(color: AppColors.kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.calendar_month_rounded, color: AppColors.kPrimaryColor, size: 28),
                   ),
                   const SizedBox(width: 16),
                   Column(
@@ -492,7 +505,7 @@ class _HomeContentState extends State<HomeContent> {
                     children: [
                       Text('Tanggal Hari Ini', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey.shade500, fontSize: 13)),
                       const SizedBox(height: 4),
-                      Text(_formatDate(DateTime.now()), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, color: Color(0xFF1F2937), fontSize: 16)),
+                      Text(_formatDate(DateTime.now()), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, color: AppColors.kTextPrimary, fontSize: 16)),
                     ],
                   )
                 ],
@@ -519,7 +532,7 @@ class _HomeContentState extends State<HomeContent> {
             child: Icon(icon, color: color, size: 32),
           ),
           const SizedBox(height: 12),
-          Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+          Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextDark)),
         ],
       ),
     );
@@ -530,9 +543,9 @@ class _HomeContentState extends State<HomeContent> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2937),
+        color: AppColors.kTextPrimary,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: [BoxShadow(color: const Color(0xFF1F2937).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]
+        boxShadow: [BoxShadow(color: AppColors.kTextPrimary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]
       ),
       child: Stack(
         children: [

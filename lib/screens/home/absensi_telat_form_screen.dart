@@ -4,14 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:dio/dio.dart';
 import 'dart:math' as math;
 import '../../providers/absensi_provider.dart';
 import '../../models/absensi_model.dart';
 import 'custom_camera_screen.dart';
-
-const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo
-const Color kBackgroundColor = Color(0xFFF3F4F6); // Soft gray
-const Color kWarningColor = Color(0xFFF59E0B);
+import '../../core/app_colors.dart';
+import '../../widgets/custom_success_dialog.dart';
 
 // ======================================================================
 // MODERN LOADING
@@ -91,7 +90,7 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
           Expanded(child: Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white))),
         ],
       ),
-      backgroundColor: isSuccess ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+      backgroundColor: isSuccess ? AppColors.kSuccessColor : AppColors.kErrorColor,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.all(20),
@@ -149,15 +148,38 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
 
     try {
       await Future.delayed(const Duration(milliseconds: 600));
-      final result = await provider.pengajuanTelat(
-        fileBukti: _fileBukti!, keterangan: _keteranganController.text.trim(), absensiId: absensi.id,
-      );
+      Map<String, dynamic> result;
+
+      if (absensi.isRejected) {
+        result = await provider.resubmitAnySubmission(
+          absensiId: absensi.id,
+          data: {
+            'file_bukti': await MultipartFile.fromFile(_fileBukti!.path, filename: _fileBukti!.path.split('/').last),
+            'keterangan': _keteranganController.text.trim(),
+            'absensi_id': absensi.id,
+          }
+        );
+      } else {
+        result = await provider.pengajuanTelat(
+          fileBukti: _fileBukti!, keterangan: _keteranganController.text.trim(), absensiId: absensi.id,
+        );
+      }
 
       if (!mounted) return;
 
       if (result['success'] == true) {
-        _showSnackBar(result['message'] ?? 'Alasan telat berhasil dikirim!', isSuccess: true);
-        Navigator.of(context).pop(true);
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => CustomSuccessDialog(
+            title: 'Berhasil!',
+            message: result['message'] ?? 'Alasan telat berhasil dikirim!',
+            onOk: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(true); // Return to previous screen
+            },
+          ),
+        );
       } else {
         // Cek apakah ini error jaringan "bapuk"
         if (result['isNetworkError'] == true) {
@@ -201,7 +223,7 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444), padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppColors.kErrorColor, padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0
                     ),
@@ -228,32 +250,47 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
         ? DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.parse(absensi!.checkInAt!).toLocal())
         : DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now());
 
-    return Scaffold(
-      backgroundColor: kBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Pengajuan Telat', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: Color(0xFF1F2937), fontSize: 18)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        return Scaffold(
+          backgroundColor: AppColors.kBackgroundColor,
+          appBar: AppBar(
+            title: const Text('Pengajuan Telat', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: Color(0xFF1F2937), fontSize: 18)),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
+            iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
+          ),
+          body: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (absensi != null && absensi.isRejected) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red.shade200)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Alasan Penolakan:', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: Colors.red)),
+                          const SizedBox(height: 4),
+                          Text(absensi.catatanAdmin ?? 'Tidak ada catatan.', style: const TextStyle(fontFamily: 'Poppins', color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
 
-              // INFO CARD
-              Container(
+                  // INFO CARD
+                  Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [lateMinutes > 0 ? kWarningColor : kPrimaryColor, lateMinutes > 0 ? const Color(0xFFD97706) : const Color(0xFF4338CA)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  gradient: LinearGradient(colors: [lateMinutes > 0 ? AppColors.kWarningColor : AppColors.kPrimaryColor, lateMinutes > 0 ? const Color(0xFFD97706) : const Color(0xFF4338CA)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                   borderRadius: BorderRadius.circular(32),
-                  boxShadow: [BoxShadow(color: (lateMinutes > 0 ? kWarningColor : kPrimaryColor).withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10))],
+                  boxShadow: [BoxShadow(color: (lateMinutes > 0 ? AppColors.kWarningColor : AppColors.kPrimaryColor).withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,7 +336,7 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
               if (lateMinutes > 0) ...[
                 const Text('Alasan Keterlambatan', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                 const SizedBox(height: 12),
-                
+
                 Container(
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200, width: 2)),
                   child: TextFormField(
@@ -335,7 +372,7 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: _fileBukti != null ? kPrimaryColor : Colors.grey.shade200,
+                        color: _fileBukti != null ? AppColors.kPrimaryColor : Colors.grey.shade200,
                         width: 2,
                       ),
                     ),
@@ -365,8 +402,8 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle),
-                                child: const Icon(Icons.camera_alt_rounded, size: 32, color: kPrimaryColor)
+                                decoration: BoxDecoration(color: AppColors.kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                                child: const Icon(Icons.camera_alt_rounded, size: 32, color: AppColors.kPrimaryColor)
                               ),
                               const SizedBox(height: 12),
                               Text('Tap untuk buka kamera', style: TextStyle(fontFamily: 'Poppins', color: Colors.grey.shade600, fontSize: 14, fontWeight: FontWeight.w600)),
@@ -382,18 +419,21 @@ class _AbsensiTelatFormScreenState extends State<AbsensiTelatFormScreen> {
                   height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: kWarningColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
+                    boxShadow: [BoxShadow(color: AppColors.kWarningColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
                   ),
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _submit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: kWarningColor,
+                      backgroundColor: AppColors.kWarningColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
                     child: _isLoading
                         ? const _ModernLoading(color: Colors.white)
-                        : const Text('AJUKAN ALASAN TELAT', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)),
+                        : Text(
+                            (absensi != null && absensi.isRejected) ? 'AJUKAN ULANG' : 'AJUKAN ALASAN TELAT',
+                            style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)
+                          ),
                   ),
                 ),
                 const SizedBox(height: 20),

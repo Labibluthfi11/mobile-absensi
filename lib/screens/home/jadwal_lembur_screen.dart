@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
 import '../../api/api.service.dart';
-import 'absensi_pulang_screen.dart'; // import konstanta kPrimaryColor, kBackgroundColor, kLemburColor
+import '../../models/absensi_model.dart';
+import '../../providers/absensi_provider.dart';
+import 'package:absensi_app/core/app_colors.dart';
 
 class JadwalLemburScreen extends StatefulWidget {
-  const JadwalLemburScreen({super.key});
+  final int? resubmitId;
+  final Absensi? existingAbsensi;
+
+  const JadwalLemburScreen({super.key, this.resubmitId, this.existingAbsensi});
 
   @override
   State<JadwalLemburScreen> createState() => _JadwalLemburScreenState();
@@ -19,6 +25,17 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
   File? _fotoBukti;
   bool _isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingAbsensi != null) {
+      _keteranganController.text = widget.existingAbsensi!.keterangan ?? '';
+      if (widget.existingAbsensi!.checkInAt != null) {
+        _selectedDate = DateTime.tryParse(widget.existingAbsensi!.checkInAt!);
+      }
+    }
+  }
+
   void _pilihTanggal() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -28,7 +45,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(primary: kPrimaryColor),
+            colorScheme: const ColorScheme.light(primary: AppColors.kPrimaryColor),
           ),
           child: child!,
         );
@@ -70,15 +87,29 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
       _isLoading = true;
     });
 
-    final apiService = Provider.of<ApiService>(context, listen: false);
+    final provider = Provider.of<AbsensiProvider>(context, listen: false);
     final String tglStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+    final bool isResubmit = widget.resubmitId != null;
 
     try {
-      final result = await apiService.submitLemburTerjadwal(
-        tanggalLembur: tglStr,
-        keterangan: _keteranganController.text.trim(),
-        fotoBukti: _fotoBukti,
-      );
+      Map<String, dynamic> result;
+
+      if (isResubmit) {
+        result = await provider.resubmitAnySubmission(
+          absensiId: widget.resubmitId!,
+          data: {
+            'tanggal_lembur': tglStr,
+            'keterangan': _keteranganController.text.trim(),
+            if (_fotoBukti != null) 'foto_bukti': await MultipartFile.fromFile(_fotoBukti!.path, filename: _fotoBukti!.path.split('/').last),
+          }
+        );
+      } else {
+        result = await provider.submitLemburTerjadwal(
+          tanggalLembur: tglStr,
+          keterangan: _keteranganController.text.trim(),
+          fotoBukti: _fotoBukti,
+        );
+      }
 
       if (!mounted) return;
 
@@ -91,11 +122,11 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20)),
               title: const Icon(Icons.check_circle_rounded,
-                  color: Colors.green, size: 60),
-              content: const Text(
-                'Pengajuan lembur terjadwal berhasil disimpan!',
+                  color: AppColors.kSuccessColor, size: 60),
+              content: Text(
+                isResubmit ? 'Perbaikan lembur terjadwal berhasil disimpan!' : 'Pengajuan lembur terjadwal berhasil disimpan!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Poppins'),
+                style: const TextStyle(fontFamily: 'Poppins'),
               ),
               actions: [
                 TextButton(
@@ -105,7 +136,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                   },
                   child: const Text('OK',
                       style: TextStyle(
-                          color: kPrimaryColor,
+                          color: AppColors.kPrimaryColor,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'Poppins')),
                 ),
@@ -116,7 +147,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.kErrorColor,
             content: Text(result['message'] ?? 'Gagal mengajukan lembur',
                 style: const TextStyle(fontFamily: 'Poppins')),
           ),
@@ -126,7 +157,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.kErrorColor,
           content: Text('Terjadi kesalahan: $e',
               style: const TextStyle(fontFamily: 'Poppins')),
         ),
@@ -152,11 +183,11 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
         _keteranganController.text.trim().isNotEmpty;
 
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       appBar: AppBar(
         title: const Text('Lembur Terjadwal',
             style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: kPrimaryColor,
+        backgroundColor: AppColors.kPrimaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
         centerTitle: true,
@@ -167,15 +198,31 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.existingAbsensi != null && widget.existingAbsensi!.isRejected) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(color: AppColors.kErrorColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.kErrorColor.withOpacity(0.5))),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Alasan Penolakan:', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: AppColors.kErrorColor)),
+                    const SizedBox(height: 4),
+                    Text(widget.existingAbsensi!.catatanAdmin ?? 'Tidak ada catatan.', style: const TextStyle(fontFamily: 'Poppins', color: AppColors.kErrorColor)),
+                  ],
+                ),
+              ),
+            ],
+
             // CARD 1: Pilih Tanggal Lembur
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: kLemburColor, width: 2),
+                border: Border.all(color: AppColors.kLemburColor, width: 2),
                 boxShadow: [
-                  BoxShadow(color: kLemburColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(color: AppColors.kLemburColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
                 ],
               ),
               child: Column(
@@ -186,7 +233,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                           fontFamily: 'Poppins',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937))),
+                          color: AppColors.kTextPrimary)),
                   const SizedBox(height: 12),
                   GestureDetector(
                     onTap: _pilihTanggal,
@@ -201,7 +248,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                       child: Row(
                         children: [
                           Icon(Icons.calendar_month_rounded,
-                              color: kPrimaryColor),
+                              color: AppColors.kPrimaryColor),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -213,7 +260,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                                 fontFamily: 'Poppins',
                                 fontSize: 14,
                                 color: _selectedDate != null
-                                    ? const Color(0xFF1F2937)
+                                    ? AppColors.kTextPrimary
                                     : Colors.grey.shade500,
                               ),
                             ),
@@ -233,9 +280,9 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: kLemburColor, width: 2),
+                border: Border.all(color: AppColors.kLemburColor, width: 2),
                 boxShadow: [
-                  BoxShadow(color: kLemburColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(color: AppColors.kLemburColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
                 ],
               ),
               child: Column(
@@ -246,7 +293,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                           fontFamily: 'Poppins',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937))),
+                          color: AppColors.kTextPrimary)),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _keteranganController,
@@ -255,7 +302,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                     style: const TextStyle(
                         fontFamily: 'Poppins',
                         fontSize: 14,
-                        color: Color(0xFF1F2937)),
+                        color: AppColors.kTextPrimary),
                     decoration: InputDecoration(
                       hintText: 'Jelaskan kegiatan lembur yang akan dilakukan',
                       hintStyle: TextStyle(
@@ -275,7 +322,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
-                              color: kLemburColor, width: 1.5)),
+                              color: AppColors.kLemburColor, width: 1.5)),
                     ),
                   ),
                 ],
@@ -289,9 +336,9 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: kLemburColor, width: 2),
+                border: Border.all(color: AppColors.kLemburColor, width: 2),
                 boxShadow: [
-                  BoxShadow(color: kLemburColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(color: AppColors.kLemburColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
                 ],
               ),
               child: Column(
@@ -302,7 +349,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                           fontFamily: 'Poppins',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937))),
+                          color: AppColors.kTextPrimary)),
                   const SizedBox(height: 12),
                   GestureDetector(
                     onTap: _fotoBukti == null ? _pickImage : null,
@@ -360,7 +407,7 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
                                 IconButton(
                                   onPressed: _removeImage,
                                   icon: const Icon(Icons.close,
-                                      color: Colors.red),
+                                      color: AppColors.kErrorColor),
                                 )
                               ],
                             ),
@@ -376,31 +423,32 @@ class _JadwalLemburScreenState extends State<JadwalLemburScreen> {
             SizedBox(
               height: 56,
               child: ElevatedButton(
-                onPressed: (!canSubmit || _isLoading) ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kLemburColor,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text(
-                        'AJUKAN LEMBUR TERJADWAL',
-                        style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 0.5),
-                      ),
+              onPressed: (!canSubmit || _isLoading) ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.kLemburColor,
+                disabledBackgroundColor: Colors.grey.shade300,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
               ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      widget.resubmitId != null ? 'AJUKAN ULANG LEMBUR' : 'AJUKAN LEMBUR TERJADWAL',
+                      style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5),
+                    ),
+              ),
+
             ),
           ],
         ),

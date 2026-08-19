@@ -5,10 +5,7 @@ import 'package:absensi_app/models/absensi_model.dart';
 import 'package:absensi_app/screens/home/absensi_telat_form_screen.dart';
 import 'package:absensi_app/providers/auth_provider.dart';
 import 'package:intl/intl.dart';
-
-const Color kPrimaryColor = Color(0xFF4F46E5);
-const Color kBackgroundColor = Color(0xFFF3F4F6);
-const Color kCardColor = Colors.white;
+import 'package:absensi_app/core/app_colors.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({super.key});
@@ -55,8 +52,9 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       year: year
     );
     
-    if (mounted) setState(() {}); 
-  }
+    if (mounted) {
+      setState(() {}); 
+    }  }
 
   Future<void> _pickDate() async {
     DateTime? picked = await showDatePicker(
@@ -67,8 +65,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            primaryColor: kPrimaryColor,
-            colorScheme: const ColorScheme.light(primary: kPrimaryColor),
+            primaryColor: AppColors.kPrimaryColor,
+            colorScheme: const ColorScheme.light(primary: AppColors.kPrimaryColor),
             buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary),
           ),
           child: child!,
@@ -131,17 +129,17 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     final filteredList = _filteredList;
 
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       body: RefreshIndicator(
         onRefresh: _refreshData,
-        color: kPrimaryColor,
+        color: AppColors.kPrimaryColor,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           slivers: [
             SliverAppBar(
               expandedHeight: 140,
               pinned: true,
-              backgroundColor: kPrimaryColor,
+              backgroundColor: AppColors.kPrimaryColor,
               elevation: 0,
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -222,7 +220,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             decoration: InputDecoration(
               hintText: 'Cari tanggal, hari, status...',
               hintStyle: TextStyle(color: Colors.grey.shade400, fontFamily: 'Poppins', fontSize: 14),
-              prefixIcon: const Icon(Icons.search_rounded, color: kPrimaryColor),
+              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.kPrimaryColor),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(icon: const Icon(Icons.cancel_rounded, color: Colors.grey), onPressed: () => setState(() { _searchController.clear(); _searchQuery = ''; }))
                   : null,
@@ -247,7 +245,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                   child: DropdownButton<int>(
                     value: _selectedMonth,
                     hint: Text("Pilih Bulan", style: TextStyle(fontFamily: 'Poppins', fontSize: 14, color: Colors.grey.shade600)),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kPrimaryColor),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.kPrimaryColor),
                     isExpanded: true,
                     style: const TextStyle(fontFamily: 'Poppins', color: Color(0xFF1F2937), fontSize: 14, fontWeight: FontWeight.w600),
                     items: List.generate(12, (index) => DropdownMenuItem(value: index + 1, child: Text(DateFormat('MMMM', 'id_ID').format(DateTime(2024, index + 1))))),
@@ -265,9 +263,9 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: kPrimaryColor,
+                  color: AppColors.kPrimaryColor,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: kPrimaryColor.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
+                  boxShadow: [BoxShadow(color: AppColors.kPrimaryColor.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
                 ),
                 child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 24),
               ),
@@ -331,8 +329,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         const Text('Data Absensi', style: TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-          child: Text('$totalRecords Catatan', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: kPrimaryColor)),
+          decoration: BoxDecoration(color: AppColors.kPrimaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+          child: Text('$totalRecords Catatan', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.kPrimaryColor)),
         ),
       ],
     );
@@ -407,13 +405,13 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 if (isLeaveRecord) ...[
                   Row(
                     children: [
-                      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.info_outline_rounded, color: kPrimaryColor, size: 18)),
+                      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.kPrimaryColor.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.info_outline_rounded, color: AppColors.kPrimaryColor, size: 18)),
                       const SizedBox(width: 12),
                       Expanded(child: Text(keterangan ?? 'Tanpa keterangan khusus.', style: TextStyle(fontFamily: 'Poppins', fontSize: 14, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _buildTimeDetail(Icons.access_time_rounded, 'WAKTU PENGAJUAN', jamMasuk, kPrimaryColor),
+                  _buildTimeDetail(Icons.access_time_rounded, 'WAKTU PENGAJUAN', jamMasuk, AppColors.kPrimaryColor),
                 ] else ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -441,7 +439,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AbsensiTelatFormScreen(absensiHariIni: absensi))),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                              decoration: BoxDecoration(color: kPrimaryColor, borderRadius: BorderRadius.circular(10)),
+                              decoration: BoxDecoration(color: AppColors.kPrimaryColor, borderRadius: BorderRadius.circular(10)),
                               child: const Text('Ajukan Alasan', style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
                             ),
                           )

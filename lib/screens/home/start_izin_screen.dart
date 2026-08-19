@@ -1,6 +1,7 @@
 import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:absensi_app/core/app_colors.dart';
 import '../../providers/izin_keluar_provider.dart';
 import '../../api/api.service.dart';
 import 'custom_camera_screen.dart';
@@ -50,7 +51,7 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
 
       if (res['statusCode'] == 200 || res['statusCode'] == 201) {
         provider.ubahStatusIzinBerjalan(true);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Izin keluar berhasil diajukan!'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Izin keluar berhasil diajukan!'), backgroundColor: AppColors.kSuccessColor));
         Navigator.pop(context);
       } else if (res['statusCode'] == 403) {
         _showLimitDialog(res['message'] ?? 'Anda tidak diizinkan melakukan ini.');
@@ -83,22 +84,22 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
+                    color: AppColors.kErrorColor.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.warning_amber_rounded, color: Colors.red.shade600, size: 48),
+                  child: Icon(Icons.warning_amber_rounded, color: AppColors.kErrorColor, size: 48),
                 ),
                 const SizedBox(height: 20),
-                const Text('Yah, Izin Ditolak!', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87), textAlign: TextAlign.center),
+                const Text('Yah, Izin Ditolak!', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.kTextPrimary), textAlign: TextAlign.center),
                 const SizedBox(height: 12),
-                Text(message, style: const TextStyle(fontFamily: 'Poppins', color: Colors.black54, fontSize: 14), textAlign: TextAlign.center),
+                Text(message, style: const TextStyle(fontFamily: 'Poppins', color: AppColors.kTextSecondary, fontSize: 14), textAlign: TextAlign.center),
                 const SizedBox(height: 30),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade600,
+                      backgroundColor: AppColors.kErrorColor,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -120,11 +121,11 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
     bool isTugasKantor = _selectedTipeIzin == 'tugas_kantor';
     
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColors.kBackgroundColor,
       appBar: AppBar(
         title: const Text('Mulai Izin Keluar', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        foregroundColor: AppColors.kTextPrimary,
         elevation: 0,
         centerTitle: true,
       ),
@@ -139,12 +140,12 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
                 DropdownButtonFormField<String>(
                   decoration: _inputDecoration('Pilihan Izin Keluar', Icons.assignment_rounded),
                   dropdownColor: Colors.white,
-                  style: const TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w500, fontFamily: 'Poppins'),
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.indigo),
+                  style: const TextStyle(color: AppColors.kTextPrimary, fontSize: 15, fontWeight: FontWeight.w500, fontFamily: 'Poppins'),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.kPrimaryColor),
                   value: _selectedTipeIzin,
                   items: const [
-                    DropdownMenuItem(value: 'mendesak', child: Text('Mendesak (Max 2 Jam)', style: TextStyle(color: Colors.black87))),
-                    DropdownMenuItem(value: 'tugas_kantor', child: Text('Keperluan Tugas Kantor', style: TextStyle(color: Colors.black87))),
+                    DropdownMenuItem(value: 'mendesak', child: Text('Mendesak (Max 2 Jam)', style: TextStyle(color: AppColors.kTextPrimary))),
+                    DropdownMenuItem(value: 'tugas_kantor', child: Text('Keperluan Tugas Kantor', style: TextStyle(color: AppColors.kTextPrimary))),
                   ],
                   onChanged: (val) {
                     setState(() {
@@ -160,12 +161,12 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
                   DropdownButtonFormField<String>(
                     decoration: _inputDecoration('Pilih Durasi Tugas', Icons.timer_rounded),
                     dropdownColor: Colors.white,
-                    style: const TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w500, fontFamily: 'Poppins'),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.indigo),
+                    style: const TextStyle(color: AppColors.kTextPrimary, fontSize: 15, fontWeight: FontWeight.w500, fontFamily: 'Poppins'),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.kPrimaryColor),
                     value: _selectedDurasi,
                     items: const [
-                      DropdownMenuItem(value: 'setengah_hari', child: Text('Setengah Hari', style: TextStyle(color: Colors.black87))),
-                      DropdownMenuItem(value: 'satu_hari_full', child: Text('Satu Hari Penuh', style: TextStyle(color: Colors.black87))),
+                      DropdownMenuItem(value: 'setengah_hari', child: Text('Setengah Hari', style: TextStyle(color: AppColors.kTextPrimary))),
+                      DropdownMenuItem(value: 'satu_hari_full', child: Text('Satu Hari Penuh', style: TextStyle(color: AppColors.kTextPrimary))),
                     ],
                     onChanged: (val) => setState(() => _selectedDurasi = val),
                   ),
@@ -176,7 +177,7 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
                 TextFormField(
                   controller: _alasanController,
                   maxLines: 4,
-                  style: const TextStyle(color: Colors.black87, fontSize: 15, fontFamily: 'Poppins'),
+                  style: const TextStyle(color: AppColors.kTextPrimary, fontSize: 15, fontFamily: 'Poppins'),
                   decoration: _inputDecoration('Tulis alasan dengan detail...', Icons.edit_note_rounded),
                 ),
                 const SizedBox(height: 24),
@@ -188,17 +189,17 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
                     height: 180,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
+                      color: AppColors.kPrimaryColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.indigo.shade200, width: 2, style: BorderStyle.solid),
+                      border: Border.all(color: AppColors.kPrimaryColor.withOpacity(0.3), width: 2, style: BorderStyle.solid),
                     ),
                     child: _fotoSurat == null
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.camera_alt_rounded, size: 48, color: Colors.indigo.shade400),
+                              Icon(Icons.camera_alt_rounded, size: 48, color: AppColors.kPrimaryColor.withOpacity(0.5)),
                               const SizedBox(height: 8),
-                              Text('Tap untuk mengambil foto dokumen', style: TextStyle(color: Colors.indigo.shade600, fontWeight: FontWeight.w500)),
+                              Text('Tap untuk mengambil foto dokumen', style: TextStyle(color: AppColors.kPrimaryColor.withOpacity(0.8), fontWeight: FontWeight.w500)),
                             ],
                           )
                         : ClipRRect(
@@ -214,11 +215,11 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
                   height: 56,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo.shade600,
+                      backgroundColor: AppColors.kPrimaryColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
-                      shadowColor: Colors.indigo.shade200,
+                      shadowColor: AppColors.kPrimaryColor.withOpacity(0.2),
                     ),
                     onPressed: provider.isLoading ? null : _submitData,
                     child: provider.isLoading
@@ -243,7 +244,7 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
 
   Widget _buildLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
-        child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.grey.shade700, fontFamily: 'Poppins')),
+        child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.kTextSecondary, fontFamily: 'Poppins')),
       );
 
   InputDecoration _inputDecoration(String hint, IconData prefixIcon) => InputDecoration(
@@ -251,9 +252,9 @@ class _StartIzinScreenState extends State<StartIzinScreen> {
         hintStyle: TextStyle(color: Colors.grey.shade400, fontFamily: 'Poppins', fontSize: 14),
         filled: true,
         fillColor: Colors.white,
-        prefixIcon: Icon(prefixIcon, color: Colors.indigo.shade300),
+        prefixIcon: Icon(prefixIcon, color: AppColors.kPrimaryColor.withOpacity(0.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.indigo.shade500, width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.kPrimaryColor, width: 2)),
       );
 }

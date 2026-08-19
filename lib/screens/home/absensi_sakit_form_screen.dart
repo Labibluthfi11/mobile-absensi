@@ -3,17 +3,18 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'package:image_picker/image_picker.dart';
+import '../../../widgets/rejected_notice_widget.dart';
+import 'package:absensi_app/widgets/custom_success_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:absensi_app/providers/absensi_provider.dart';
 import 'package:absensi_app/models/absensi_model.dart';
 import 'package:absensi_app/providers/auth_provider.dart';
 import 'package:absensi_app/services/image_compress_service.dart';
 import 'package:intl/intl.dart';
-
-const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo
-const Color kBackgroundColor = Color(0xFFF3F4F6); // Soft gray
-const Color kCardColor = Colors.white;
+import 'package:absensi_app/utils/resubmit_helper.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
+import '../../../core/app_colors.dart';
 
 const Map<String, Map<String, dynamic>> _cutiConfig = {
   'cuti_tahunan':   {'label': 'Cuti Tahunan',             'maxDays': 12,  'potongJatah': true,  'gratisHari': 0},
@@ -118,7 +119,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       }
     }
   }
-
+  
   @override
   void dispose() {
     _catatanController.dispose();
@@ -156,7 +157,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       firstDate: isResubmit ? DateTime.now().subtract(const Duration(days: 365)) : DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       selectableDayPredicate: _isWorkingDay,
-      builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: kPrimaryColor)), child: child!),
+      builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.kPrimaryColor)), child: child!),
     );
     if (picked != null) {
       setState(() {
@@ -189,7 +190,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       firstDate: _startDate!,
       lastDate: maxEndDate,
       selectableDayPredicate: _isWorkingDay,
-      builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: kPrimaryColor)), child: child!),
+      builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.kPrimaryColor)), child: child!),
     );
     if (picked != null) setState(() => _endDate = picked);
   }
@@ -395,27 +396,27 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
 
       if (mounted) {
         if (result['success'] == true) {
+          // 🔥 TRUK: Refresh profil setelah sukses submit agar data terbaru langsung ditarik
+          Provider.of<AuthProvider>(context, listen: false).refreshProfile();
+          
+
+
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (_) => AlertDialog(
-              title: const Text('Berhasil', style: TextStyle(fontFamily: 'Poppins')),
-              content: Text(result['message'] ?? 'Data terkirim.', style: const TextStyle(fontFamily: 'Poppins')),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Tutup dialog
-                    if (isResubmit) {
-                      Navigator.of(context).pop(true);
-                    } else {
-                      _catatanController.clear();
-                      _catatanPanggilanController.clear();
-                      setState(() { _pickedFile = null; _startDate = null; _endDate = null; });
-                    }
-                  },
-                  child: const Text('OK', style: TextStyle(fontFamily: 'Poppins')),
-                ),
-              ],
+            builder: (_) => CustomSuccessDialog(
+              title: 'Berhasil!',
+              message: result['message'] ?? 'Data terkirim.',
+              onOk: () {
+                Navigator.of(context).pop(); // Tutup dialog
+                if (isResubmit) {
+                  Navigator.of(context).pop(true);
+                } else {
+                  _catatanController.clear();
+                  _catatanPanggilanController.clear();
+                  setState(() { _pickedFile = null; _startDate = null; _endDate = null; });
+                }
+              },
             ),
           );
         } else {
@@ -496,7 +497,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
         );
       },
       child: Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       appBar: AppBar(
         title: Text(isResubmit ? 'Re-Submit Pengajuan' : 'Form Pengajuan', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: Colors.white,
@@ -572,7 +573,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                     child: DropdownButton<String>(
                       isExpanded: true,
                       value: _jenisCuti,
-                      icon: const Icon(Icons.expand_more_rounded, color: kPrimaryColor),
+                      icon: const Icon(Icons.expand_more_rounded, color: AppColors.kPrimaryColor),
                       style: const TextStyle(fontFamily: 'Poppins', color: Color(0xFF1F2937), fontSize: 14, fontWeight: FontWeight.w600),
                       items: _cutiConfig.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value['label'] as String))).toList(),
                       onChanged: (val) {
@@ -651,16 +652,16 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    border: Border.all(color: _pickedFile != null ? kPrimaryColor : Colors.grey.shade300, width: 2, style: BorderStyle.solid),
+                    border: Border.all(color: _pickedFile != null ? AppColors.kPrimaryColor : Colors.grey.shade300, width: 2, style: BorderStyle.solid),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Column(
                     children: [
-                      Icon(_pickedFile != null ? Icons.check_circle_rounded : Icons.cloud_upload_rounded, size: 40, color: _pickedFile != null ? kPrimaryColor : Colors.grey.shade400),
+                      Icon(_pickedFile != null ? Icons.check_circle_rounded : Icons.cloud_upload_rounded, size: 40, color: _pickedFile != null ? AppColors.kPrimaryColor : Colors.grey.shade400),
                       const SizedBox(height: 12),
                       Text(
                         _pickedFile != null ? 'Dokumen Terlampir' : 'Tekan untuk mengunggah Surat/Foto',
-                        style: TextStyle(fontFamily: 'Poppins', fontWeight: _pickedFile != null ? FontWeight.bold : FontWeight.normal, color: _pickedFile != null ? kPrimaryColor : Colors.grey.shade500),
+                        style: TextStyle(fontFamily: 'Poppins', fontWeight: _pickedFile != null ? FontWeight.bold : FontWeight.normal, color: _pickedFile != null ? AppColors.kPrimaryColor : Colors.grey.shade500),
                       ),
                       if (_pickedFile != null)
                         Padding(padding: const EdgeInsets.only(top: 6), child: Text(_pickedFile!.path.split('/').last, style: const TextStyle(fontSize: 11, color: Colors.grey), overflow: TextOverflow.ellipsis)),
@@ -668,6 +669,10 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                   ),
                 ),
               ),
+
+              if (isResubmit && existing != null && existing.isRejected) ...[
+                ResubmitHelper.buildRejectedNote(existing.catatanAdmin),
+              ],
 
               if (isResubmit && existing != null && existing.fileBuktiUrl != null && _pickedFile == null) ...[
                 const SizedBox(height: 16),
@@ -684,7 +689,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                 const SizedBox(height: 16),
                 Container(
                   height: 180, width: double.infinity,
-                  decoration: BoxDecoration(border: Border.all(color: kPrimaryColor.withOpacity(0.3), width: 3), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(border: Border.all(color: AppColors.kPrimaryColor.withOpacity(0.3), width: 3), borderRadius: BorderRadius.circular(16)),
                   child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(_pickedFile!, fit: BoxFit.cover)),
                 )
               ],
@@ -696,12 +701,12 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                 height: 56,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: kPrimaryColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
+                  boxShadow: [BoxShadow(color: AppColors.kPrimaryColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
                 ),
                 child: ElevatedButton(
                   onPressed: _isSubmitting ? null : _submitForm,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimaryColor,
+                    backgroundColor: AppColors.kPrimaryColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 0
                   ),
@@ -754,7 +759,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: date != null ? kPrimaryColor : Colors.grey.shade200, width: 2)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: date != null ? AppColors.kPrimaryColor : Colors.grey.shade200, width: 2)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -763,7 +768,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
             Row(
               children: [
                 Expanded(child: Text(_formatDate(date), style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.bold, color: date != null ? const Color(0xFF1F2937) : Colors.grey.shade400))),
-                Icon(Icons.calendar_month_rounded, size: 16, color: date != null ? kPrimaryColor : Colors.grey.shade400)
+                Icon(Icons.calendar_month_rounded, size: 16, color: date != null ? AppColors.kPrimaryColor : Colors.grey.shade400)
               ],
             )
           ],

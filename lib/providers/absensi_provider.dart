@@ -3,6 +3,7 @@ import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/models/absensi_model.dart';
 import 'package:absensi_app/services/image_compress_service.dart';
 import 'package:universal_io/io.dart';
+import 'package:dio/dio.dart';
 
 class AbsensiProvider with ChangeNotifier {
   final ApiService _apiService;
@@ -419,6 +420,7 @@ class AbsensiProvider with ChangeNotifier {
     required String catatan,
     DateTime? startDate,
     DateTime? endDate,
+    String? jamPulangRencana, // ✅ Parameter baru
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
@@ -439,6 +441,7 @@ class AbsensiProvider with ChangeNotifier {
         catatan: catatan,
         startDate: startDate,
         endDate: endDate,
+        jamPulangRencana: jamPulangRencana, // ✅ Kirim ke API Service
         onProgress: (sent, total) {
           _uploadProgress = sent / total;
           notifyListeners();
@@ -471,6 +474,7 @@ class AbsensiProvider with ChangeNotifier {
     required String catatanPanggilan,
     DateTime? startDate,
     DateTime? endDate,
+    String? jamPulangRencana, // ✅ Parameter baru
   }) async {
     setIsLoading(true);
     Map<String, dynamic> result;
@@ -492,6 +496,7 @@ class AbsensiProvider with ChangeNotifier {
         catatanPanggilan: catatanPanggilan,
         startDate: startDate,
         endDate: endDate,
+        jamPulangRencana: jamPulangRencana, // ✅ Kirim ke API Service
         onProgress: (sent, total) {
           _uploadProgress = sent / total;
           notifyListeners();
@@ -518,7 +523,53 @@ class AbsensiProvider with ChangeNotifier {
     return result;
   }
 
+  Future<Map<String, dynamic>> submitLemburTerjadwal({
+    required String tanggalLembur,
+    required String keterangan,
+    File? fotoBukti,
+  }) async {
+    setIsLoading(true);
+    try {
+      final result = await _apiService.submitLemburTerjadwal(
+        tanggalLembur: tanggalLembur,
+        keterangan: keterangan,
+        fotoBukti: fotoBukti,
+      );
+      if (result['success'] == true) {
+        await fetchHistoryAbsensi();
+      }
+      return result;
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    } finally {
+      setIsLoading(false);
+      notifyListeners();
+    }
+  }
+
   // -----------------------------
+  // ✅ NEW: Resubmit Universal
+  Future<Map<String, dynamic>> resubmitAnySubmission({
+    required int absensiId,
+    Map<String, dynamic>? data,
+  }) async {
+    setIsLoading(true);
+    try {
+      final formData = FormData.fromMap(data ?? {});
+      final result = await _apiService.resubmitPengajuan(absensiId, formData);
+      
+      if (result['success'] == true) {
+        await fetchHistoryAbsensi();
+      }
+      return result;
+    } catch (e) {
+      return {'success': false, 'message': 'Error resubmit: $e'};
+    } finally {
+      setIsLoading(false);
+      notifyListeners();
+    }
+  }
+
   // ✅ FIXED: Resubmit Absensi (sakit / izin / lembur)
   // -----------------------------
   // lib/providers/absensi_provider.dart

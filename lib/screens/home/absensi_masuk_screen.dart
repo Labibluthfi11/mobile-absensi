@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../core/app_colors.dart';
 import 'custom_camera_screen.dart';
 import 'absensi_lembur_screen.dart';
 import 'package:universal_io/io.dart'; 
@@ -10,11 +11,6 @@ import 'dart:math' as math;
 import '../../providers/absensi_provider.dart'; 
 import 'package:intl/intl.dart';
 import '../../services/security_service.dart';
-
-const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo Premium
-const Color kBackgroundColor = Color(0xFFF3F4F6); // Soft gray
-const Color kSuccessColor = Color(0xFF10B981);
-const Color kErrorColor = Color(0xFFEF4444);
 
 // ======================================================================
 // MODERN LOADING
@@ -158,7 +154,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
           Expanded(child: Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white))),
         ],
       ),
-      backgroundColor: isSuccess ? kSuccessColor : kErrorColor,
+      backgroundColor: isSuccess ? AppColors.kSuccessColor : AppColors.kErrorColor,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.all(20),
@@ -324,7 +320,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
                           Navigator.of(context).push(MaterialPageRoute(builder: (_) => AbsensiLemburScreen()));
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF59E0B), // kLemburColor
+                          backgroundColor: AppColors.kLemburColor,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0
@@ -375,7 +371,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: kErrorColor, padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppColors.kErrorColor, padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0
                     ),
@@ -421,7 +417,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
                       Navigator.of(context).pop(); 
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: kPrimaryColor, padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppColors.kPrimaryColor, padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0
                     ),
@@ -448,7 +444,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
     final bool hasImage = _capturedImageFile != null;
     
     final String buttonLabel = hasImage ? 'KIRIM ABSENSI' : 'BUKA KAMERA';
-    final Color buttonColor = hasImage ? kSuccessColor : kPrimaryColor;
+    final Color buttonColor = hasImage ? AppColors.kSuccessColor : AppColors.kPrimaryColor;
     final bool isButtonDisabled = absensiProvider.isLoading || (hasImage && !locationReady);
 
     return PopScope(
@@ -460,7 +456,7 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
         );
       },
       child: Scaffold(
-      backgroundColor: kBackgroundColor, 
+      backgroundColor: AppColors.kBackgroundColor, 
       appBar: AppBar(
         title: const Text('Absensi Masuk', style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF1F2937), fontWeight: FontWeight.w700, fontSize: 18)),
         backgroundColor: Colors.white, 
@@ -478,9 +474,9 @@ class _AbsensiMasukScreenState extends State<AbsensiMasukScreen> {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(colors: [AppColors.kPrimaryColor, AppColors.kAccentColor], begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(32),
-                boxShadow: [BoxShadow(color: const Color(0xFF4F46E5).withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10))],
+                boxShadow: [BoxShadow(color: AppColors.kPrimaryColor.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10))],
               ),
               child: Column(
                 children: [

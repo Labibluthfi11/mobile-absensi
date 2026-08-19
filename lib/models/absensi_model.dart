@@ -1,6 +1,18 @@
 import 'dart:convert';
+import 'package:absensi_app/core/constants/api_constants.dart';
 
 class Absensi {
+  // Helper to fix URLs
+  static String? _fixUrl(String? url) {
+    if (url == null || url.isEmpty || url.startsWith('http')) return url;
+    
+    // BASE_URL in constants includes '/api/v1/', we need to strip it to get the domain root
+    // Example BASE_URL: 'https://absensi.anselmudaberkarya.my.id/api/v1/'
+    // Target domain root: 'https://absensi.anselmudaberkarya.my.id/'
+    final baseUrl = ApiConstants.BASE_URL.replaceAll('/api/v1/', '/');
+    
+    return '$baseUrl${url.startsWith('/') ? url.substring(1) : url}';
+  }
   final int id;
   final int userId;
   final String status;
@@ -196,9 +208,9 @@ class Absensi {
       lemburEnd: json['lembur_end']?.toString(),
       lemburRest: json['lembur_rest'] == "1" || json['lembur_rest'] == true,
       lemburKeterangan: json['lembur_keterangan']?.toString(),
-      fotoMasukUrl: json['foto_masuk_url']?.toString(),
-      fotoPulangUrl: json['foto_pulang_url']?.toString(),
-      fileBuktiUrl: json['file_bukti_url']?.toString(),
+      fotoMasukUrl: _fixUrl(json['foto_masuk_url']?.toString()),
+      fotoPulangUrl: _fixUrl(json['foto_pulang_url']?.toString()),
+      fileBuktiUrl: _fixUrl(json['file_bukti_url']?.toString()),
       currentApprovalLevel: json['current_approval_level'] != null
           ? int.tryParse(json['current_approval_level'].toString())
           : null,

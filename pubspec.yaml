@@ -37,6 +37,7 @@ dependencies:
   sentry_flutter: ^8.14.2
   safe_device: ^1.1.1
   crypto: ^3.0.3
+  lottie: ^3.3.3
 
 
 dev_dependencies:
@@ -51,7 +52,8 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/ # Ini sudah benar untuk memasukkan semua gambar di folder ini
+    - assets/images/
+    - assets/animations/ # Ini sudah benar untuk memasukkan semua gambar di folder ini
     # Kamu tidak perlu menambahkan 'assets/images/amb2.jpg' secara spesifik di sini
     # karena 'assets/images/' sudah mencakup semua isinya.
 

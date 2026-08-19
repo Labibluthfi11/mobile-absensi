@@ -91,6 +91,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    NotificationService().setContext(context);
     final apiService = context.read<ApiService>();
 
     return MaterialApp(

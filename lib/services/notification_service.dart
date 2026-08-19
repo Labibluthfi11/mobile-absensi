@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import 'package:flutter/material.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -16,6 +19,9 @@ class NotificationService {
 
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  
+  BuildContext? _appContext;
+  void setContext(BuildContext context) => _appContext = context;
 
   Future<void> initialize() async {
     // 1. Request Permissions
@@ -50,7 +56,7 @@ class NotificationService {
     await _localNotifications.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (details) {
-        // Handle notification tap
+        _handleRefresh();
       },
     );
 
@@ -62,6 +68,10 @@ class NotificationService {
       if (message.notification != null) {
         _showLocalNotification(message);
       }
+      
+      if (message.data['type'] == 'cuti_approved') {
+        _handleRefresh();
+      }
     });
 
     // 4. Set Background Handler
@@ -70,6 +80,12 @@ class NotificationService {
     // 5. Get FCM Token
     String? token = await _fcm.getToken();
     print("FCM Token: $token");
+  }
+
+  void _handleRefresh() {
+    if (_appContext != null) {
+      Provider.of<AuthProvider>(_appContext!, listen: false).refreshProfile();
+    }
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {

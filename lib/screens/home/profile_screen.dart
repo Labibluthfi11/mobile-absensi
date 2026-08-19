@@ -3,14 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:absensi_app/core/app_colors.dart';
 
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/api.service.dart';
 import '../../services/image_compress_service.dart';
-
-const Color kPrimaryColor = Color(0xFF4F46E5);
-const Color kBackgroundColor = Color(0xFFF3F4F6);
 
 // ----------------------------------------------------------------------
 // MODERN UI COMPONENTS
@@ -30,7 +28,7 @@ class ModernTextField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+          Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextSecondary)),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -41,11 +39,11 @@ class ModernTextField extends StatelessWidget {
             ),
             child: TextFormField(
               controller: controller,
-              style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
+              style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.kTextPrimary),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                prefixIcon: Icon(icon, color: kPrimaryColor, size: 22),
+                prefixIcon: Icon(icon, color: AppColors.kPrimaryColor, size: 22),
               ),
             ),
           )
@@ -69,7 +67,7 @@ class NonEditableField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+          Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextSecondary)),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -86,7 +84,7 @@ class NonEditableField extends StatelessWidget {
                 Expanded(
                   child: Text(
                     value,
-                    style: TextStyle(fontFamily: 'Poppins', fontSize: 15, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontFamily: 'Poppins', fontSize: 15, color: AppColors.kTextSecondary, fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
@@ -261,7 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(child: Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white))),
           ],
         ),
-        backgroundColor: isSuccess ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+        backgroundColor: isSuccess ? AppColors.kSuccessColor : AppColors.kErrorColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.all(20),
@@ -285,11 +283,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: const Color(0xFFEF4444).withOpacity(0.1), shape: BoxShape.circle),
-              child: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 40),
+              decoration: BoxDecoration(color: AppColors.kErrorColor.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.logout_rounded, color: AppColors.kErrorColor, size: 40),
             ),
             const SizedBox(height: 20),
-            const Text('Keluar Akun?', style: TextStyle(fontFamily: 'Poppins', fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+            const Text('Keluar Akun?', style: TextStyle(fontFamily: 'Poppins', fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.kTextPrimary)),
             const SizedBox(height: 8),
             Text('Apakah Anda yakin ingin keluar dari aplikasi? Anda harus login kembali nantinya.', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, color: Colors.grey.shade600, height: 1.5)),
             const SizedBox(height: 32),
@@ -315,7 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFFEF4444),
+                      backgroundColor: AppColors.kErrorColor,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
                     ),
@@ -335,12 +333,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       body: FutureBuilder<User?>(
         future: _userProfileFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: kPrimaryColor));
+            return Center(child: CircularProgressIndicator(color: AppColors.kPrimaryColor));
           }
 
           if (snapshot.hasError || !snapshot.hasData || _user == null) {
@@ -351,7 +349,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const Icon(Icons.wifi_off_rounded, size: 60, color: Colors.grey),
                   const SizedBox(height: 16),
                   const Text('Gagal memuat profil.', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold)),
-                  TextButton(onPressed: () => setState(() => _userProfileFuture = _fetchUserProfile()), child: const Text('Coba Lagi', style: TextStyle(fontFamily: 'Poppins', color: kPrimaryColor)))
+                  TextButton(onPressed: () => setState(() => _userProfileFuture = _fetchUserProfile()), child: const Text('Coba Lagi', style: TextStyle(fontFamily: 'Poppins', color: AppColors.kPrimaryColor)))
                 ],
               ),
             );
@@ -381,13 +379,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           decoration: BoxDecoration(
-                            color: kPrimaryColor.withOpacity(0.1),
+                            color: AppColors.kPrimaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: kPrimaryColor.withOpacity(0.2)),
+                            border: Border.all(color: AppColors.kPrimaryColor.withOpacity(0.2)),
                           ),
                           child: Text(
                             _user!.employmentType.toUpperCase(),
-                            style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w800, color: kPrimaryColor, letterSpacing: 1),
+                            style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.kPrimaryColor, letterSpacing: 1),
                           ),
                         ),
                       ),
@@ -406,8 +404,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         height: 56,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          gradient: const LinearGradient(colors: [kPrimaryColor, Color(0xFF6366F1)]),
-                          boxShadow: [BoxShadow(color: kPrimaryColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
+                          gradient: const LinearGradient(colors: [AppColors.kPrimaryColor, Color(0xFF6366F1)]),
+                          boxShadow: [BoxShadow(color: AppColors.kPrimaryColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
                         ),
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _saveProfile,
@@ -425,11 +423,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // Logout Button
                       OutlinedButton.icon(
                         onPressed: () => _showLogoutDialog(authProvider),
-                        icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
-                        label: const Text('Keluar Akun', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFFEF4444))),
+                        icon: const Icon(Icons.logout_rounded, color: AppColors.kErrorColor),
+                        label: const Text('Keluar Akun', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.kErrorColor)),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(color: const Color(0xFFEF4444).withOpacity(0.3), width: 1.5),
+                          side: BorderSide(color: AppColors.kErrorColor.withOpacity(0.3), width: 1.5),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           backgroundColor: Colors.white,
                         ),
@@ -554,7 +552,7 @@ class _ProfileHeaderDelegate extends SliverPersistentHeaderDelegate {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: kPrimaryColor,
+                            color: AppColors.kPrimaryColor,
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 3),
                           ),
@@ -587,7 +585,7 @@ class _ProfileHeaderDelegate extends SliverPersistentHeaderDelegate {
           child: Container(
             height: 30,
             decoration: const BoxDecoration(
-              color: kBackgroundColor,
+              color: AppColors.kBackgroundColor,
               borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
             ),
           ),

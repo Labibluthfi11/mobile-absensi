@@ -1,12 +1,19 @@
 import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
+import 'package:absensi_app/core/app_colors.dart';
 import '../../providers/izin_keluar_provider.dart';
+import '../../providers/absensi_provider.dart';
 import '../../api/api.service.dart';
+import '../../models/absensi_model.dart';
 import 'custom_camera_screen.dart';
 
 class EndIzinScreen extends StatefulWidget {
-  const EndIzinScreen({Key? key}) : super(key: key);
+  final int? resubmitId;
+  final Absensi? existingAbsensi;
+
+  const EndIzinScreen({Key? key, this.resubmitId, this.existingAbsensi}) : super(key: key);
 
   @override
   _EndIzinScreenState createState() => _EndIzinScreenState();
@@ -15,6 +22,14 @@ class EndIzinScreen extends StatefulWidget {
 class _EndIzinScreenState extends State<EndIzinScreen> {
   final TextEditingController _keteranganController = TextEditingController();
   File? _dokumenKembali;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingAbsensi != null) {
+      _keteranganController.text = widget.existingAbsensi!.keterangan ?? '';
+    }
+  }
   Future<void> _takePicture() async {
     final File? image = await Navigator.push<File>(
       context, 
@@ -32,22 +47,34 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
     }
 
     final provider = Provider.of<IzinKeluarProvider>(context, listen: false);
+    final absensiProvider = Provider.of<AbsensiProvider>(context, listen: false);
     final apiService = Provider.of<ApiService>(context, listen: false);
     provider.setLoading(true);
 
     try {
-      final res = await apiService.endIzinKeluar(
-        keteranganKembali: _keteranganController.text,
-        dokumenKembali: _dokumenKembali!,
-      );
+      Map<String, dynamic> res;
+      if (widget.resubmitId != null) {
+        res = await absensiProvider.resubmitAnySubmission(
+          absensiId: widget.resubmitId!,
+          data: {
+            'keterangan_kembali': _keteranganController.text,
+            'dokumen_kembali': await MultipartFile.fromFile(_dokumenKembali!.path, filename: _dokumenKembali!.path.split('/').last),
+          }
+        );
+      } else {
+        res = await apiService.endIzinKeluar(
+          keteranganKembali: _keteranganController.text,
+          dokumenKembali: _dokumenKembali!,
+        );
+      }
 
-      if (res['statusCode'] == 200 || res['statusCode'] == 201) {
-        provider.ubahStatusIzinBerjalan(false);
+      if (res['success'] == true) {
+        if (widget.resubmitId == null) provider.ubahStatusIzinBerjalan(false);
         
         if (res['is_pelanggaran'] == true) {
            _tampilkanDialogPelanggaran();
         } else {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Izin berhasil diselesaikan.'), backgroundColor: Colors.green));
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Izin berhasil diselesaikan.'), backgroundColor: AppColors.kSuccessColor));
            Navigator.pop(context);
         }
       } else {
@@ -67,7 +94,7 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.warning_rounded, color: Colors.redAccent, size: 64),
+          icon: const Icon(Icons.warning_rounded, color: AppColors.kErrorColor, size: 64),
           title: const Text('Izin Diselesaikan', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
           content: const Text(
             'Izin Keluar diselesaikan, namun lewat batas maksimal 2 jam. Ini tercatat sebagai Pelanggaran.\n\nKeputusan mengenai sanksi atau tindakan selanjutnya akan ditentukan secara manual oleh admin dan akan diinformasikan melalui notifikasi terpisah.',
@@ -77,12 +104,12 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.kErrorColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                 onPressed: () {
                   Navigator.of(context).pop(); 
                   Navigator.of(context).pop(); 
                 },
-                child: const Text('Mengerti', style: TextStyle(color: Colors.white)),
+                child: const Text('Mengerti', style: TextStyle(color: AppColors.kCardColor)),
               ),
             )
           ],
@@ -94,11 +121,11 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50], 
+      backgroundColor: AppColors.kBackgroundColor,
       appBar: AppBar(
-        title: const Text('Selesaikan Izin', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        title: Text(widget.resubmitId != null ? 'Re-Submit Izin' : 'Selesaikan Izin', style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.kCardColor,
+        foregroundColor: AppColors.kTextPrimary,
         elevation: 0,
         centerTitle: true,
       ),
@@ -109,11 +136,26 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.existingAbsensi != null && widget.existingAbsensi!.isRejected) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(color: AppColors.kErrorColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.kErrorColor.withOpacity(0.4))),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Alasan Penolakan:', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: AppColors.kErrorColor)),
+                        const SizedBox(height: 4),
+                        Text(widget.existingAbsensi!.catatanAdmin ?? 'Tidak ada catatan.', style: const TextStyle(fontFamily: 'Poppins', color: AppColors.kErrorColor)),
+                      ],
+                    ),
+                  ),
+                ],
                 _buildLabel('Keterangan Penyelesaian'),
                 TextFormField(
                   controller: _keteranganController,
                   maxLines: 4,
-                  style: const TextStyle(color: Colors.black87, fontSize: 15, fontFamily: 'Poppins'),
+                  style: const TextStyle(color: AppColors.kTextPrimary, fontSize: 15, fontFamily: 'Poppins'),
                   decoration: _inputDecoration('Detail penyelesaian tugas/urusan...', Icons.edit_note_rounded),
                 ),
                 const SizedBox(height: 24),
@@ -125,17 +167,17 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
                     height: 180,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
+                      color: AppColors.kPrimaryColor.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.indigo.shade200, width: 2, style: BorderStyle.solid),
+                      border: Border.all(color: AppColors.kPrimaryColor.withOpacity(0.4), width: 2, style: BorderStyle.solid),
                     ),
                     child: _dokumenKembali == null
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.camera_alt_rounded, size: 48, color: Colors.indigo.shade400),
+                              Icon(Icons.camera_alt_rounded, size: 48, color: AppColors.kPrimaryColor),
                               const SizedBox(height: 8),
-                              Text('Tap untuk mengambil foto bukti', style: TextStyle(color: Colors.indigo.shade600, fontWeight: FontWeight.w500)),
+                              Text('Tap untuk mengambil foto bukti', style: TextStyle(color: AppColors.kPrimaryColor.withOpacity(0.8), fontWeight: FontWeight.w500)),
                             ],
                           )
                         : ClipRRect(
@@ -151,15 +193,15 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
                   height: 56,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo.shade600,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.kPrimaryColor,
+                      foregroundColor: AppColors.kCardColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
-                      shadowColor: Colors.indigo.shade200,
+                      shadowColor: AppColors.kPrimaryColor.withOpacity(0.4),
                     ),
                     onPressed: provider.isLoading ? null : _submitEndIzin,
                     child: provider.isLoading
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.kCardColor, strokeWidth: 2))
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: const [
@@ -180,17 +222,17 @@ class _EndIzinScreenState extends State<EndIzinScreen> {
 
   Widget _buildLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
-        child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.grey.shade700, fontFamily: 'Poppins')),
+        child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.kTextDark, fontFamily: 'Poppins')),
       );
 
   InputDecoration _inputDecoration(String hint, IconData prefixIcon) => InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontFamily: 'Poppins', fontSize: 14),
+        hintStyle: TextStyle(color: AppColors.kTextSecondary, fontFamily: 'Poppins', fontSize: 14),
         filled: true,
-        fillColor: Colors.white,
-        prefixIcon: Icon(prefixIcon, color: Colors.indigo.shade300),
+        fillColor: AppColors.kCardColor,
+        prefixIcon: Icon(prefixIcon, color: AppColors.kPrimaryColor.withOpacity(0.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.indigo.shade500, width: 2)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.kBackgroundColor, width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.kPrimaryColor, width: 2)),
       );
 }

@@ -1,12 +1,17 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:universal_io/io.dart';
 import 'dart:math' as math;
-import '../../providers/absensi_provider.dart';
 import 'package:intl/intl.dart';
-import 'absensi_pulang_screen.dart'; // konstanta warna
+
+import '../../providers/absensi_provider.dart';
+import '../../models/absensi_model.dart';
+import '../../widgets/rejected_notice_widget.dart';
+import '../../core/app_colors.dart';
+import '../../widgets/custom_success_dialog.dart';
 
 // ======================================================================
 // MODERN LOADING
@@ -87,6 +92,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
   final TextEditingController _jamSelesaiController = TextEditingController();
   bool _istirahatChecked = false;
   int? _resubmitId;
+  Absensi? _existingAbsensi;
   bool _isInitialized = false;
 
   @override
@@ -148,7 +154,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                       color: Colors.white))),
         ],
       ),
-      backgroundColor: isSuccess ? kSuccessColor : kErrorColor,
+      backgroundColor: isSuccess ? AppColors.kSuccessColor : AppColors.kErrorColor,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.all(20),
@@ -178,7 +184,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(primary: kLemburColor),
+            colorScheme: const ColorScheme.light(primary: AppColors.kLemburColor),
           ),
           child: child!,
         );
@@ -323,64 +329,14 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(32)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                      color: Colors.green.shade50, shape: BoxShape.circle),
-                  child: Icon(Icons.beenhere_rounded,
-                      color: Colors.green.shade500, size: 60),
-                ),
-                const SizedBox(height: 20),
-                Text(_resubmitId != null ? 'Perbaikan Lembur Tercatat!' : 'Pengajuan Lembur Tercatat!',
-                    style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937)),
-                    textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                Text(
-                    'Waktu Submit: ${DateFormat('HH:mm').format(DateTime.now())}',
-                    style: const TextStyle(
-                        fontFamily: 'Poppins', color: Colors.grey)),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: kPrimaryColor,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                        elevation: 0),
-                    child: const Text('Tutup',
-                        style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.white)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (context) => CustomSuccessDialog(
+        title: _resubmitId != null ? 'Perbaikan Lembur Tercatat!' : 'Pengajuan Lembur Tercatat!',
+        message: 'Waktu Submit: ${DateFormat('HH:mm').format(DateTime.now())}',
+        onOk: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
+      ),
     );
   }
 
@@ -396,7 +352,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
     final bool isButtonDisabled = absensiProvider.isLoading || !isFormValid;
 
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       appBar: AppBar(
         title: Text(_resubmitId != null ? 'Perbaikan Lembur' : 'Pengajuan Lembur',
             style: const TextStyle(
@@ -420,13 +376,13 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
               padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                    colors: [kLemburColor, kLemburColor.withOpacity(0.7)],
+                    colors: [AppColors.kLemburColor, AppColors.kLemburColor.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(32),
                 boxShadow: [
                   BoxShadow(
-                      color: kLemburColor.withOpacity(0.4),
+                      color: AppColors.kLemburColor.withOpacity(0.4),
                       blurRadius: 20,
                       offset: const Offset(0, 10))
                 ],
@@ -467,6 +423,9 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
             ),
             const SizedBox(height: 24),
 
+            if (_existingAbsensi != null && _existingAbsensi!.isRejected)
+              RejectedNoticeWidget(note: _existingAbsensi!.catatanAdmin ?? 'Tidak ada catatan.'),
+
             // ── Card Detail Lembur ──
             Container(
               padding: const EdgeInsets.all(24),
@@ -474,10 +433,10 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(32),
                 border:
-                    Border.all(color: kLemburColor.withOpacity(0.3), width: 2),
+                    Border.all(color: AppColors.kLemburColor.withOpacity(0.3), width: 2),
                 boxShadow: [
                   BoxShadow(
-                      color: kLemburColor.withOpacity(0.05),
+                      color: AppColors.kLemburColor.withOpacity(0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 5))
                 ],
@@ -490,10 +449,10 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                       Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                              color: kLemburColor.withOpacity(0.1),
+                              color: AppColors.kLemburColor.withOpacity(0.1),
                               shape: BoxShape.circle),
                           child: const Icon(Icons.work_history_rounded,
-                              color: kLemburColor, size: 20)),
+                              color: AppColors.kLemburColor, size: 20)),
                       const SizedBox(width: 12),
                       const Text('Detail Lembur',
                           style: TextStyle(
@@ -544,7 +503,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 4),
                       value: _istirahatChecked,
-                      activeColor: kLemburColor,
+                      activeColor: AppColors.kLemburColor,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                       onChanged: absensiProvider.isLoading
@@ -604,7 +563,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                             : Colors.white,
                         border: Border.all(
                             color: _hasilKerjaFiles.isNotEmpty
-                                ? kLemburColor
+                                ? AppColors.kLemburColor
                                 : Colors.grey.shade200,
                             width: 2),
                         borderRadius: BorderRadius.circular(20),
@@ -663,14 +622,14 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
                       ? []
                       : [
                           BoxShadow(
-                              color: kSuccessColor.withOpacity(0.4),
+                              color: AppColors.kSuccessColor.withOpacity(0.4),
                               blurRadius: 15,
                               offset: const Offset(0, 5))
                         ]),
               child: ElevatedButton(
                 onPressed: isButtonDisabled ? null : _submitLembur,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: kSuccessColor,
+                  backgroundColor: AppColors.kSuccessColor,
                   disabledBackgroundColor: Colors.grey.shade300,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),

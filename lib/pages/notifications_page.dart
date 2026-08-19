@@ -2,12 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'package:provider/provider.dart';
 
-// <<< Sesuaikan path import ini >>>
 import '../api/api.service.dart';
 import '../models/notification_model.dart';
-import '../screens/home/absensi_pulang_screen.dart'; // Import screen lembur
-// <<< AKHIR Penyesuaian path import >>>
+import '../providers/absensi_provider.dart';
+import '../screens/home/absensi_pulang_screen.dart';
+import '../screens/home/absensi_sakit_form_screen.dart';
 
 class NotificationsPage extends StatefulWidget {
   final ApiService apiService;
@@ -60,51 +61,57 @@ class _NotificationsPageState extends State<NotificationsPage>
     print('🔍 Debug Navigation:');
     print('   - Type: $type');
     print('   - Target ID: $targetId');
-    print('   - Target Page: ${notif.targetPage}');
 
-  
-if (type.contains('scheduled_lembur')) {
-  print('✅ Navigate to: Jadwal Lembur Screen');
-  Navigator.pushNamed(context, '/jadwal_lembur');
-  return;
-}
+    // Cari data absensi di provider berdasarkan ID
+    final provider = Provider.of<AbsensiProvider>(context, listen: false);
+    final absensi = provider.myAbsensiList.firstWhere(
+      (a) => a.id == targetId,
+      orElse: () => null as dynamic,
+    );
 
-// Reminder lembur hari ini → ke absen pulang lembur
-if (type.contains('lembur_reminder') || type == 'lembur') {
-  print('✅ Navigate to: Absensi Pulang Lembur Screen (lembur: true)');
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const AbsensiPulangScreen(lembur: true),
-    ),
-  );
-  return;
-}
+    if (type.contains('scheduled_lembur')) {
+      print('✅ Navigate to: Jadwal Lembur Screen');
+      Navigator.pushNamed(context, '/jadwal_lembur');
+      return;
+    }
 
-    // Untuk tipe lainnya, gunakan named route
-    String route = '/home'; // default fallback
+    if (type.contains('lembur_reminder') || type == 'lembur') {
+      print('✅ Navigate to: Absensi Pulang Lembur Screen (lembur: true)');
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AbsensiPulangScreen(lembur: true),
+        ),
+      );
+      return;
+    }
 
-    if (type.contains('sakit')) {
-      route = '/sakit_detail';
-    } else if (type.contains('izin')) {
-      route = '/izin_detail';
-    } else if (type.contains('absensi')) {
+    // Navigasi ke Form Sakit/Izin dengan membawa data objek
+    if (type.contains('sakit') || type.contains('izin')) {
+      print('✅ Navigate to: SakitFormScreen (resubmit: ${absensi != null})');
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SakitFormScreen(
+            resubmitId: targetId,
+            existingAbsensi: absensi,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Fallback untuk tipe lainnya
+    String route = '/home';
+    if (type.contains('absensi')) {
       route = '/absensi_detail';
     } else if (notif.targetPage != null && notif.targetPage!.isNotEmpty) {
       route = notif.targetPage!;
     }
 
-    print('✅ Navigate to Named Route: $route (with targetId: $targetId)');
-
-    // Gunakan try-catch untuk handle route yang tidak terdaftar
     try {
-      Navigator.pushNamed(
-        context,
-        route,
-        arguments: targetId,
-      );
+      Navigator.pushNamed(context, route, arguments: targetId);
     } catch (e) {
-      print('⚠️ Route not found: $route - Fallback to /home');
       Navigator.pushReplacementNamed(context, '/home');
     }
   }

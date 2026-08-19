@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import '../../core/app_colors.dart';
 import 'custom_camera_screen.dart';
 import 'package:universal_io/io.dart'; 
 import 'dart:async'; 
@@ -12,12 +13,6 @@ import 'dart:math' as math;
 import '../../providers/absensi_provider.dart'; 
 import 'package:intl/intl.dart';
 import '../../services/security_service.dart';
-
-const Color kPrimaryColor = Color(0xFF4F46E5); // Deep Indigo
-const Color kBackgroundColor = Color(0xFFF3F4F6);
-const Color kSuccessColor = Color(0xFF10B981);
-const Color kErrorColor = Color(0xFFEF4444);
-const Color kLemburColor = Color(0xFFF59E0B); // Amber for Lembur
 
 // ======================================================================
 // MODERN LOADING
@@ -85,10 +80,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   
   String _locationStatus = 'Memuat lokasi...';
 
-  // Early Checkout (Sakit) state
-  bool _isPulangSakit = false;
-  File? _fileBuktiSakit;
-  final TextEditingController _keteranganSakitController = TextEditingController();
+  // Early Checkout (Sakit) state - REMOVED
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -104,21 +96,11 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   @override
   void dispose() {
     _timer.cancel();
-    _keteranganSakitController.dispose();
     super.dispose();
   }
   
   void _updateTime() {
     if (mounted) setState(() => _timeString = DateFormat('HH:mm:ss').format(DateTime.now()));
-  }
-
-  Future<void> _pickBuktiSakit() async {
-    try {
-      final XFile? img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-      if (img != null) {
-        if (mounted) setState(() => _fileBuktiSakit = File(img.path));
-      }
-    } catch (e) { _showSnackBar('Gagal memilih gambar bukti.', isSuccess: false); }
   }
   
   Future<void> _checkLocation() async {
@@ -169,7 +151,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
           Expanded(child: Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white))),
         ],
       ),
-      backgroundColor: isSuccess ? kSuccessColor : kErrorColor,
+      backgroundColor: isSuccess ? AppColors.kSuccessColor : AppColors.kErrorColor,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.all(20),
@@ -225,28 +207,15 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
       return;
     }
 
-    if (_isPulangSakit) {
-      if (_fileBuktiSakit == null) {
-         absensiProvider.setIsLoading(false);
-         _showSnackBar('File bukti sakit wajib diupload.', isSuccess: false);
-         return;
-      }
-      if (_keteranganSakitController.text.trim().isEmpty) {
-         absensiProvider.setIsLoading(false);
-         _showSnackBar('Keterangan sakit wajib diisi.', isSuccess: false);
-         return;
-      }
-    }
-
     try {
       absensiProvider.setErrorMessage(null);
       await Future.delayed(const Duration(milliseconds: 600));
 
       final result = await absensiProvider.absenPulang(
         foto: _capturedImageFile!, lat: _currentPosition!.latitude, lng: _currentPosition!.longitude,
-        tipe: _isPulangSakit ? 'sakit' : null, 
-        keterangan: _isPulangSakit ? _keteranganSakitController.text.trim() : null,
-        fileBukti: _isPulangSakit ? _fileBuktiSakit : null,
+        tipe: null, 
+        keterangan: null,
+        fileBukti: null,
       );
       
       if (result['success'] == true && mounted) {
@@ -311,7 +280,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: kErrorColor, padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppColors.kErrorColor, padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0
                     ),
@@ -386,7 +355,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
                               Navigator.of(context).pop(); 
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: kPrimaryColor, padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: AppColors.kPrimaryColor, padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               elevation: 0
                             ),
@@ -459,7 +428,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
   Widget build(BuildContext context) {
     final absensiProvider = Provider.of<AbsensiProvider>(context);
     final bool locationReady = _locationStatus.contains('Jitu') && _currentPosition != null;
-    final Color headerColor = kErrorColor;
+    final Color headerColor = AppColors.kErrorColor;
     
     final bool canSubmit = _isPhotoTaken && locationReady;
     final bool isButtonDisabled = absensiProvider.isLoading || !canSubmit;
@@ -473,7 +442,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
         );
       },
       child: Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: AppColors.kBackgroundColor,
       appBar: AppBar(
         title: const Text('Absensi Pulang', style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF1F2937), fontWeight: FontWeight.w700, fontSize: 18)),
         backgroundColor: Colors.white,
@@ -568,7 +537,7 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
                     child: ElevatedButton(
                       onPressed: absensiProvider.isLoading || !locationReady ? null : (_isPhotoTaken ? _retakePicture : _takePhoto),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: absensiProvider.isLoading || !locationReady ? Colors.grey.shade300 : kPrimaryColor,
+                        backgroundColor: absensiProvider.isLoading || !locationReady ? Colors.grey.shade300 : AppColors.kPrimaryColor,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         elevation: 0,
                       ),
@@ -586,105 +555,17 @@ class _AbsensiPulangScreenState extends State<AbsensiPulangScreen> {
               ),
             ),
             
-            const SizedBox(height: 24),
-
-            // SAKIT TOGGLE SECTION
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.red.shade100, width: 2),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
-                            child: Icon(Icons.local_hospital_rounded, color: Colors.red.shade500, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text('Pulang Lebih Awal (Sakit)', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
-                        ],
-                      ),
-                      Switch(
-                        value: _isPulangSakit,
-                        activeColor: Colors.red.shade500,
-                        onChanged: (val) => setState(() => _isPulangSakit = val),
-                      ),
-                    ],
-                  ),
-                  
-                  if (_isPulangSakit) ...[
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    const Text('Keterangan / Alasan Sakit', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey)),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(color: kBackgroundColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
-                      child: TextFormField(
-                        controller: _keteranganSakitController,
-                        maxLines: 2,
-                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
-                        decoration: const InputDecoration(
-                          hintText: 'Tulis gejala atau alasan sakit...',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Dokumen / Surat Dokter', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey)),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: _pickBuktiSakit,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: _fileBuktiSakit != null ? Colors.green.shade50 : Colors.blue.shade50,
-                          border: Border.all(color: _fileBuktiSakit != null ? Colors.green.shade200 : Colors.blue.shade200, width: 2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(_fileBuktiSakit != null ? Icons.check_circle_rounded : Icons.upload_file_rounded, color: _fileBuktiSakit != null ? Colors.green.shade600 : Colors.blue.shade600, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_fileBuktiSakit != null ? 'Dokumen Terlampir' : 'Unggah File Bukti', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: _fileBuktiSakit != null ? Colors.green.shade700 : Colors.blue.shade700, fontSize: 13)),
-                                  if (_fileBuktiSakit != null) 
-                                    Text(_fileBuktiSakit!.path.split('/').last, style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Colors.green.shade600), overflow: TextOverflow.ellipsis),
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            
             const SizedBox(height: 32),
             Container(
               height: 56,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: isButtonDisabled ? [] : [BoxShadow(color: kSuccessColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
+                boxShadow: isButtonDisabled ? [] : [BoxShadow(color: AppColors.kSuccessColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))]
               ),
               child: ElevatedButton(
                 onPressed: isButtonDisabled ? null : _submitAbsen,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: kSuccessColor,
+                  backgroundColor: AppColors.kSuccessColor,
                   disabledBackgroundColor: Colors.grey.shade300,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0,

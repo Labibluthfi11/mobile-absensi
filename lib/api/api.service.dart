@@ -626,6 +626,7 @@ Future<Map<String, dynamic>> resetPassword({
     required String catatan,
     DateTime? startDate,
     DateTime? endDate,
+    String? jamPulangRencana,
     Function(int sent, int total)? onProgress,
   }) async {
     try {
@@ -637,6 +638,7 @@ Future<Map<String, dynamic>> resetPassword({
         'status': 'sakit',
         if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
         if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
+        if (jamPulangRencana != null) 'jam_pulang_rencana': jamPulangRencana,
       });
 
       final response = await _dio.post(
@@ -661,6 +663,7 @@ Future<Map<String, dynamic>> resetPassword({
     required String catatanPanggilan,
     DateTime? startDate,
     DateTime? endDate,
+    String? jamPulangRencana,
     Function(int sent, int total)? onProgress,
   }) async {
     try {
@@ -673,6 +676,7 @@ Future<Map<String, dynamic>> resetPassword({
         'submission_type': catatanPanggilan,    // ✅ simpan jenis cuti
         if (startDate != null) 'start_date': DateFormat('yyyy-MM-dd').format(startDate),
         if (endDate != null) 'end_date': DateFormat('yyyy-MM-dd').format(endDate),
+        if (jamPulangRencana != null) 'jam_pulang_rencana': jamPulangRencana,
       });
 
       final response = await _dio.post(
@@ -721,6 +725,21 @@ Future<Map<String, dynamic>> resetPassword({
 }
 
   // =========================================================================
+  // =========================================================================
+  // UNIVERSAL RESUBMIT
+  // =========================================================================
+
+  Future<Map<String, dynamic>> resubmitPengajuan(int absensiId, FormData data) async {
+    try {
+      final response = await _dio.post('absensi/resubmit/$absensiId', data: data);
+      return {'success': true, 'message': response.data['message'] ?? 'Resubmit berhasil.'};
+    } on DioException catch (e) {
+      return _handleDioError(e, 'Gagal resubmit pengajuan');
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   // NEW METHODS: RESUBMIT
   // =========================================================================
 
