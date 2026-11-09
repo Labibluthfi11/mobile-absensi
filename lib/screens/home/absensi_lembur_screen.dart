@@ -117,6 +117,7 @@ class _AbsensiLemburScreenState extends State<AbsensiLemburScreen> {
         (a) => a.id == _resubmitId,
       );
 
+      _existingAbsensi = existing;
       _jamMulaiController.text = existing.lemburStart ?? '';
       _jamSelesaiController.text = existing.lemburEnd ?? '';
       _istirahatChecked = existing.lemburRest ?? false;

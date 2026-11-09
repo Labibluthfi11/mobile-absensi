@@ -483,7 +483,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
     final isResubmit = widget.resubmitId != null;
     final existing = widget.existingAbsensi;
     final userType = Provider.of<AuthProvider>(context).user?.employmentType.toLowerCase() ?? 'freelance';
-    final sisaCuti = Provider.of<AuthProvider>(context).user?.sisaCuti ?? 12;
+    final sisaCuti = Provider.of<AuthProvider>(context).user?.sisaCuti;
 
     if (userType == 'organik' && _tipePengajuan == 'izin') _tipePengajuan = 'sakit';
     if (userType != 'organik' && _tipePengajuan == 'cuti') _tipePengajuan = 'sakit';
@@ -608,7 +608,7 @@ class _SakitFormScreenState extends State<SakitFormScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(color: Colors.orange.shade200, borderRadius: BorderRadius.circular(10)),
-                                child: Text('Sisa Cuti: $sisaCuti Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 11, color: Colors.orange.shade900)),
+                                child: Text('Sisa Cuti: ${sisaCuti ?? '—'} Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 11, color: Colors.orange.shade900)),
                               )
                             ]
                           ],

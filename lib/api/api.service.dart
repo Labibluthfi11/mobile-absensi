@@ -2,42 +2,37 @@
 
 import 'package:universal_io/io.dart';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as path;
 
 import '../core/constants/api_constants.dart';
 import '../models/user_model.dart';
 import '../models/absensi_model.dart';
+import '../models/historical_attendance_request.dart';
 import '../models/notification_model.dart';
+import '../services/attendance_submission_error.dart';
 
 class ApiService {
   late Dio _dio;
-  final _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
   static const String _authTokenKey = 'auth_token';
 
-  ApiService() {
-    _dio = Dio(
-  BaseOptions(
-    baseUrl: ApiConstants.BASE_URL,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 60),
-    sendTimeout: const Duration(seconds: 60),
-    headers: {'Accept': 'application/json'},
-  ),
-);
-    
-    _dio.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () {
-        final client = HttpClient();
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) => true;
-        return client;
-      },
-    );
+  ApiService({Dio? dio, FlutterSecureStorage? storage})
+      : _storage = storage ?? const FlutterSecureStorage() {
+    _dio =
+        dio ??
+        Dio(
+          BaseOptions(
+            baseUrl: ApiConstants.BASE_URL,
+            connectTimeout: const Duration(seconds: 15),
+            receiveTimeout: const Duration(seconds: 60),
+            sendTimeout: const Duration(seconds: 60),
+            headers: {'Accept': 'application/json'},
+          ),
+        );
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -229,19 +224,9 @@ Future<Map<String, dynamic>> resetPassword({
 
   Future<User?> getAuthenticatedUser() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      if (!prefs.containsKey(_authTokenKey)) {
-        return null;
-      }
       final response = await _dio.get('user');
-      if (response.statusCode == 200 && response.data != null) {
-        final dynamic userData = response.data['data'] ?? response.data;
-        if (userData is Map<String, dynamic>) {
-          return User.fromJson(userData);
-        } else {
-          print('Error: response.data is not a Map<String, dynamic> in getAuthenticatedUser. Type: ${response.data.runtimeType}, Data: ${response.data}');
-          return null;
-        }
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return User.fromJson(response.data as Map<String, dynamic>);
       }
       return null;
     } on DioException catch (e) {
@@ -250,8 +235,8 @@ Future<Map<String, dynamic>> resetPassword({
       }
       _handleDioError(e, 'Failed to fetch authenticated user');
       return null;
-    } catch (e) {
-      print('Error fetching authenticated user: $e');
+    } on FormatException {
+      print('Failed to parse authenticated user profile.');
       return null;
     }
   }
@@ -345,7 +330,11 @@ Future<Map<String, dynamic>> resetPassword({
       }
       return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
     } on DioException catch (e) {
-      return _handleDioError(e, 'Absen masuk gagal');
+      return _handleDioError(
+        e,
+        'Absen masuk gagal',
+        isAttendanceSubmission: true,
+      );
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
@@ -390,9 +379,107 @@ Future<Map<String, dynamic>> resetPassword({
       }
       return {'success': false, 'message': 'Data absensi tidak ditemukan.'};
     } on DioException catch (e) {
-      return _handleDioError(e, 'Absen pulang gagal');
+      return _handleDioError(
+        e,
+        'Absen pulang gagal',
+        isAttendanceSubmission: true,
+      );
     } catch (e) {
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> ajukanAbsensiLampau({
+    required HistoricalAttendanceRequest request,
+    Function(int sent, int total)? onProgress,
+  }) async {
+    final validationErrors = request.validate();
+    if (validationErrors.isNotEmpty) {
+      return {
+        'success': false,
+        'statusCode': 422,
+        'message': validationErrors.values.first,
+        'data': {
+          'errors': validationErrors.map(
+            (field, message) => MapEntry(field, [message]),
+          ),
+        },
+      };
+    }
+
+    try {
+      if (await request.fileBukti!.length() > 2 * 1024 * 1024) {
+        const message = 'Ukuran foto bukti maksimal 2 MB.';
+        return {
+          'success': false,
+          'statusCode': 422,
+          'message': message,
+          'data': {
+            'errors': {
+              'file_bukti': [message],
+            },
+          },
+        };
+      }
+
+      final extension = path.extension(request.fileBukti!.path).toLowerCase();
+      final contentType = switch (extension) {
+        '.jpg' || '.jpeg' => MediaType('image', 'jpeg'),
+        '.png' => MediaType('image', 'png'),
+        _ => throw const FormatException('Unsupported proof image format.'),
+      };
+      final formData = FormData.fromMap({
+        ...request.multipartFields,
+        'file_bukti': await MultipartFile.fromFile(
+          request.fileBukti!.path,
+          filename: path.basename(request.fileBukti!.path),
+          contentType: contentType,
+        ),
+      });
+      final response = await _dio.post(
+        'absensi/pengajuan-lampau',
+        data: formData,
+        onSendProgress: onProgress,
+      );
+      final responseData = response.data;
+      final message = responseData is Map<String, dynamic>
+          ? responseData['message']?.toString()
+          : null;
+      return {
+        'success': true,
+        'message': message ?? 'Pengajuan menunggu persetujuan admin.',
+        'data': responseData,
+      };
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      final responseData = e.response?.data;
+      final message = responseData is Map<String, dynamic>
+          ? responseData['message']?.toString()
+          : null;
+      final error = _handleDioError(
+        e,
+        statusCode == 409
+            ? 'Terjadi konflik dengan data absensi pada tanggal tersebut.'
+            : 'Gagal mengirim pengajuan absensi tanggal lampau.',
+      );
+      return {
+        ...error,
+        'success': false,
+        'message': message ?? error['message'],
+        'statusCode': statusCode,
+        'data': responseData,
+      };
+    } on FileSystemException {
+      return {
+        'success': false,
+        'message': 'Foto bukti tidak dapat dibaca. Pilih foto lain.',
+      };
+    } on FormatException {
+      return {
+        'success': false,
+        'statusCode': 422,
+        'message': 'Bukti harus berupa gambar JPG, JPEG, atau PNG.',
+      };
     }
   }
 
@@ -921,8 +1008,10 @@ Future<Map<String, dynamic>> resetPassword({
   }
 
   // =========================================================================
-  // SECTION NOTIFICATIONS
+  // SECTION KOREKSI LUPA ABSEN (UPDATED)
   // =========================================================================
+
+
 
   Future<int> fetchUnreadCount() async {
     try {
@@ -993,7 +1082,11 @@ Future<Map<String, dynamic>> resetPassword({
     return await _storage.read(key: _authTokenKey);
   }
 
-  Map<String, dynamic> _handleDioError(DioException e, String defaultMessage) {
+  Map<String, dynamic> _handleDioError(
+    DioException e,
+    String defaultMessage, {
+    bool isAttendanceSubmission = false,
+  }) {
     String message = defaultMessage;
     bool isNetworkError = false;
 
@@ -1006,7 +1099,15 @@ Future<Map<String, dynamic>> resetPassword({
     }
 
     if (e.response != null) {
-      if (e.response!.data != null && e.response!.data is Map<String, dynamic>) {
+      final attendanceMessage = isAttendanceSubmission
+          ? attendanceSubmissionPolicyErrorMessage(
+              e.response!.statusCode,
+              e.response!.data,
+            )
+          : null;
+      if (attendanceMessage != null) {
+        message = attendanceMessage;
+      } else if (e.response!.data != null && e.response!.data is Map<String, dynamic>) {
         if (e.response!.data.containsKey('message') && e.response!.data['message'] != null) {
           message = e.response!.data['message'];
         } else if (e.response!.data.containsKey('errors') && e.response!.data['errors'] != null) {
@@ -1020,17 +1121,17 @@ Future<Map<String, dynamic>> resetPassword({
       } else {
         message = 'Server error: ${e.response!.statusCode}';
       }
-      print('Dio error: ${e.response!.statusCode} - ${e.response!.data}');
+      print('Dio error: ${e.response!.statusCode}');
     } else if (!isNetworkError) {
       message = 'Network error: ${e.message}';
-      print('Dio error: ${e.message}');
+      print('Dio request failed without a server response.');
     }
 
     return {
       'success': false, 
       'message': message, 
       'statusCode': e.response?.statusCode,
-      'isNetworkError': isNetworkError,
+      'isNetworkError': isNetworkError,   
       'data': e.response?.data
     };
   }

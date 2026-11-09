@@ -30,7 +30,8 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as int,
+      id: _parseInteger(json['id']) ??
+          (throw const FormatException('Missing or invalid user id.')),
       name: json['name'] as String? ?? 'N/A',
       email: json['email'] as String? ?? 'user@example.com',
       idKaryawan: json['id_karyawan'] as String? ?? 'N/A',
@@ -38,16 +39,9 @@ class User {
       employmentType: json['employment_type'] as String? ?? 'Unknown',
       profilePhotoUrl: json['profile_photo_url'] as String?,
       profilePhotoPath: json['profile_photo_path'] as String?,
-      // ✅ Safe parsing — handle String atau int dari API
-      sisaCuti: json['sisa_cuti'] != null 
-    ? (int.tryParse(json['sisa_cuti'].toString()) ?? 12) // Kalau gagal parse jadi 12
-    : 12, // Kalau emang dari sananya NULL, kasih jatah default 12
-      totalCutiDiambil: json['total_cuti_diambil'] != null 
-          ? int.tryParse(json['total_cuti_diambil'].toString()) 
-          : null,
-      tahunCuti: json['tahun_cuti'] != null 
-          ? int.tryParse(json['tahun_cuti'].toString()) 
-          : null,
+      sisaCuti: _parseInteger(json['sisa_cuti']),
+      totalCutiDiambil: _parseInteger(json['total_cuti_diambil']),
+      tahunCuti: _parseInteger(json['tahun_cuti']),
     );
   }
 
@@ -66,4 +60,20 @@ class User {
       'tahun_cuti': tahunCuti,
     };
   }
+}
+
+int? _parseInteger(Object? value) {
+  if (value is int) return value;
+  if (value is num && value.isFinite && value == value.roundToDouble()) {
+    return value.toInt();
+  }
+  if (value is String) {
+    final parsed = num.tryParse(value.trim());
+    if (parsed != null &&
+        parsed.isFinite &&
+        parsed == parsed.roundToDouble()) {
+      return parsed.toInt();
+    }
+  }
+  return null;
 }

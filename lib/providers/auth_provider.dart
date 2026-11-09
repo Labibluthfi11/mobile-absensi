@@ -16,15 +16,19 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
 
   final ApiService _apiService;
-  final _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
   
   late Future<void> initializationFuture; // Tambahkan ini
 
   static const String _authTokenKey = 'auth_token';
   static const String _userDataKey = 'user_data';
 
-  AuthProvider({required ApiService apiService}) 
+  AuthProvider({
+    required ApiService apiService,
+    FlutterSecureStorage? storage,
+  })
     : _apiService = apiService,
+      _storage = storage ?? const FlutterSecureStorage(),
       super() {
     initializationFuture = _loadTokenAndUser(); // Simpan proses loading ke future
   }
@@ -187,13 +191,18 @@ class AuthProvider extends ChangeNotifier {
     try {
       final User? updatedUser = await _apiService.getAuthenticatedUser(); 
       if (updatedUser != null) {
+        if (_user != null && updatedUser.id != _user!.id) {
+          throw StateError(
+            'Authenticated profile does not match the current account.',
+          );
+        }
         _user = updatedUser;
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(_userDataKey, jsonEncode(_user!.toJson()));
         notifyListeners();
       }
     } catch (e) {
-      print('Gagal refresh profile: $e');
+      print('Gagal refresh profile (${e.runtimeType}).');
     }
   }
 

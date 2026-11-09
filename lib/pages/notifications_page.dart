@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:provider/provider.dart';
 
 import '../api/api.service.dart';
+import '../models/absensi_model.dart';
 import '../models/notification_model.dart';
 import '../providers/absensi_provider.dart';
 import '../screens/home/absensi_pulang_screen.dart';
@@ -62,12 +63,14 @@ class _NotificationsPageState extends State<NotificationsPage>
     print('   - Type: $type');
     print('   - Target ID: $targetId');
 
-    // Cari data absensi di provider berdasarkan ID
+    // Cari data absensi di provider berdasarkan ID secara aman
     final provider = Provider.of<AbsensiProvider>(context, listen: false);
-    final absensi = provider.myAbsensiList.firstWhere(
-      (a) => a.id == targetId,
-      orElse: () => null as dynamic,
-    );
+    Absensi? absensi;
+    try {
+      absensi = provider.myAbsensiList.firstWhere((a) => a.id == targetId);
+    } catch (_) {
+      absensi = null;
+    }
 
     if (type.contains('scheduled_lembur')) {
       print('✅ Navigate to: Jadwal Lembur Screen');
@@ -83,6 +86,13 @@ class _NotificationsPageState extends State<NotificationsPage>
           builder: (context) => const AbsensiPulangScreen(lembur: true),
         ),
       );
+      return;
+    }
+
+    // ✅ FIXED: Tangkap notifikasi lembur ditolak / resubmit lembur
+    if (type.contains('lembur')) {
+      print('✅ Navigate to: AbsensiLemburScreen (resubmitId: $targetId)');
+      Navigator.pushNamed(context, '/lembur_detail', arguments: targetId);
       return;
     }
 
@@ -114,40 +124,18 @@ class _NotificationsPageState extends State<NotificationsPage>
     } catch (e) {
       Navigator.pushReplacementNamed(context, '/home');
     }
-  }
+    }
 
-  void _handleNotificationTap(NotificationModel notif) async {
+    void _handleNotificationTap(NotificationModel notif) async {
     try {
-      // Optimistic UI: navigasi dulu
+      // 1. Navigasi langsung ke target page tanpa terhalang error API
       _navigateToTargetPage(notif);
-      
-      // Tandai sebagai dibaca di background
-      final result = await widget.apiService.markNotificationAsRead(notif.id);
-      if (result['success']) {
-        // Refresh list setelah berhasil
-        setState(() {
-          _notificationsFuture = widget.apiService.fetchNotifications();
-        });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'Gagal memproses notifikasi.'),
-              backgroundColor: Colors.red.shade600,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          );
-        }
-      }
     } catch (e) {
-      print('❌ Error handling notification: $e');
+      print('❌ Error navigating: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Terjadi kesalahan koneksi.'),
+            content: const Text('Gagal membuka halaman tujuan.'),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -156,8 +144,23 @@ class _NotificationsPageState extends State<NotificationsPage>
           ),
         );
       }
+      return;
     }
-  }
+
+    // 2. Tandai sebagai dibaca di background secara terpisah
+    try {
+      final result = await widget.apiService.markNotificationAsRead(notif.id);
+      if (result['success']) {
+        if (mounted) {
+          setState(() {
+            _notificationsFuture = widget.apiService.fetchNotifications();
+          });
+        }
+      }
+    } catch (e) {
+      print('⚠️ Failed to mark notification as read in background: $e');
+    }
+    }
 
   IconData _getNotificationIcon(NotificationModel notif) {
     final title = notif.title.toLowerCase();
@@ -461,7 +464,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                                                     ? Colors.grey[500]
                                                     : Colors.grey[700],
                                               ),
-                                              maxLines: 2,
+                                              maxLines: 4,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                             const SizedBox(height: 8),

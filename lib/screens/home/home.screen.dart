@@ -22,6 +22,7 @@ import 'absensi_lembur_screen.dart';
 import 'start_izin_screen.dart';
 import 'end_izin_screen.dart';
 import 'half_day_leave_screen.dart';
+import 'historical_attendance_request_screen.dart';
 import '../../providers/absensi_provider.dart';
 import '../../providers/izin_keluar_provider.dart';
 import '../../services/notification_service.dart';
@@ -113,7 +114,9 @@ class _HomeScreenState extends State<HomeScreen> {
 // ----------------------------------------------------------------------
 
 class HomeContent extends StatefulWidget {
-  const HomeContent({super.key});
+  const HomeContent({super.key, this.checkForUpdates = true});
+
+  final bool checkForUpdates;
 
   @override
   State<HomeContent> createState() => _HomeContentState();
@@ -131,9 +134,10 @@ class _HomeContentState extends State<HomeContent> {
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _getTime());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadUnreadCount();
-      context.read<AuthProvider>().refreshProfile(); // 🔥 Panggil refreshProfile langsung
       _refreshData();
-      UpdateService.checkForUpdate(context);
+      if (widget.checkForUpdates) {
+        UpdateService.checkForUpdate(context);
+      }
     });
   }
 
@@ -308,6 +312,18 @@ class _HomeContentState extends State<HomeContent> {
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SakitFormScreen())),
                       ),
                       _buildQuickAction(
+                        icon: Icons.history_rounded,
+                        label: 'Absen Lampau',
+                        color: AppColors.kOrangeColor,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const HistoricalAttendanceRequestScreen(),
+                          ),
+                        ),
+                      ),
+                      _buildQuickAction(
                         icon: Icons.event_available_rounded,
                         label: 'Lembur\nTerjadwal',
                         color: AppColors.kOrangeColor,
@@ -460,7 +476,7 @@ class _HomeContentState extends State<HomeContent> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('${user.sisaCuti ?? 12}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w800, color: AppColors.kTextPrimary, fontSize: 32, height: 1)),
+                          Text('${user.sisaCuti ?? '—'}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w800, color: AppColors.kTextPrimary, fontSize: 32, height: 1)),
                           const Padding(
                             padding: EdgeInsets.only(bottom: 4.0, left: 6.0),
                             child: Text('Hari', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 15)),

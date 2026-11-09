@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -6,10 +7,19 @@ import 'package:universal_io/io.dart';
 import 'dart:ui';
 import 'package:image/image.dart' as img;
 import 'package:absensi_app/core/app_colors.dart';
+import 'package:absensi_app/services/face_detection_service.dart';
 
 class CustomCameraScreen extends StatefulWidget {
   final bool useBackCamera;
-  const CustomCameraScreen({super.key, this.useBackCamera = false});
+  final bool requireFaceDetection;
+  final FaceDetectionService? faceDetectionService;
+
+  const CustomCameraScreen({
+    super.key,
+    this.useBackCamera = false,
+    this.requireFaceDetection = false,
+    this.faceDetectionService,
+  });
 
   @override
   State<CustomCameraScreen> createState() => _CustomCameraScreenState();
@@ -26,6 +36,9 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
 
   FlashMode _flashMode = FlashMode.off;
   File? _previewFile;
+  late final FaceDetectionService? _faceDetectionService;
+  String _faceDetectionGuide =
+      'Pastikan satu wajah terlihat jelas di area kamera sebelum mengambil foto.';
 
   // Untuk animasi tap-to-focus
   Offset? _focusPoint;
@@ -39,6 +52,9 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    _faceDetectionService = widget.requireFaceDetection
+        ? widget.faceDetectionService ?? MlKitFaceDetectionService()
+        : null;
     
     _animController = AnimationController(
       vsync: this,
@@ -57,6 +73,14 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
     WidgetsBinding.instance.removeObserver(this);
     _animController.dispose();
     _controller?.dispose();
+    final faceDetectionService = _faceDetectionService;
+    if (faceDetectionService != null) {
+      unawaited(
+        faceDetectionService.close().catchError((Object error) {
+          debugPrint('Gagal menutup pemeriksa wajah: $error');
+        }),
+      );
+    }
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
   }
@@ -198,6 +222,40 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
         }
       }
 
+      if (widget.requireFaceDetection) {
+        try {
+          final faces = await _faceDetectionService!.detectFaces(finalFile);
+          if (!hasClearlyDetectedFace(faces)) {
+            if (mounted) {
+              setState(() {
+                _isTakingPicture = false;
+                _faceDetectionGuide =
+                    'Wajah belum terdeteksi. Hadap kamera, posisikan wajah di area, dan pastikan pencahayaan cukup.';
+              });
+              _showSnackbar(
+                'Wajah belum terdeteksi dengan jelas. Silakan atur posisi dan ambil ulang.',
+                isError: true,
+              );
+            }
+            return;
+          }
+        } catch (e) {
+          debugPrint('Pemeriksaan wajah gagal: $e');
+          if (mounted) {
+            setState(() {
+              _isTakingPicture = false;
+              _faceDetectionGuide =
+                  'Pemeriksaan wajah gagal. Periksa pencahayaan dan coba ambil foto lagi.';
+            });
+            _showSnackbar(
+              'Pemeriksaan wajah gagal. Foto tidak dapat digunakan, silakan coba lagi.',
+              isError: true,
+            );
+          }
+          return;
+        }
+      }
+
       if (mounted) {
         setState(() {
           _previewFile = finalFile;
@@ -208,6 +266,12 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
       if (mounted) {
         setState(() => _isTakingPicture = false);
         _showSnackbar('Gagal mengambil foto: ${e.description}', isError: true);
+      }
+    } catch (e) {
+      debugPrint('Gagal memproses foto kamera: $e');
+      if (mounted) {
+        setState(() => _isTakingPicture = false);
+        _showSnackbar('Gagal memproses foto. Silakan coba ambil ulang.', isError: true);
       }
     }
   }
@@ -392,8 +456,11 @@ class _CustomCameraScreenState extends State<CustomCameraScreen>
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: Colors.white.withOpacity(0.15)),
               ),
-              child: const Text(
-                'Posisikan wajah di dalam area',
+              child: Text(
+                widget.requireFaceDetection
+                    ? _faceDetectionGuide
+                    : 'Posisikan wajah di dalam area',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 15,

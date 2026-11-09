@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:absensi_app/api/api.service.dart';
 import 'package:absensi_app/models/absensi_model.dart';
+import 'package:absensi_app/models/historical_attendance_request.dart';
 import 'package:absensi_app/services/image_compress_service.dart';
+import 'package:absensi_app/services/face_detection_service.dart';
 import 'package:universal_io/io.dart';
 import 'package:dio/dio.dart';
 
 class AbsensiProvider with ChangeNotifier {
   final ApiService _apiService;
+  final FaceDetectionService Function() _faceDetectionServiceFactory;
 
   List<Absensi> _myAbsensiList = [];
   Absensi? _currentDayAbsensi;
@@ -38,8 +41,12 @@ class AbsensiProvider with ChangeNotifier {
   int get totalLembur => _totalLembur;
   int get totalTanpaKet => _totalTanpaKet;
 
-  AbsensiProvider({required ApiService apiService}) 
-    : _apiService = apiService {
+  AbsensiProvider({
+    required ApiService apiService,
+    FaceDetectionService Function()? faceDetectionServiceFactory,
+  }) : _apiService = apiService,
+       _faceDetectionServiceFactory =
+           faceDetectionServiceFactory ?? MlKitFaceDetectionService.new {
     refreshAbsensi();
   }
 
@@ -63,11 +70,16 @@ class AbsensiProvider with ChangeNotifier {
   }
 
   // ✅ UPDATE: Tambahkan parameter optional untuk filter & default ke bulan/tahun sekarang jika kosong
-  Future<void> fetchHistoryAbsensi({String? searchDate, int? month, int? year, bool silent = false}) async {
+  Future<void> fetchHistoryAbsensi({
+    String? searchDate,
+    int? month,
+    int? year,
+    bool silent = false,
+  }) async {
     if (!silent) setIsLoading(true);
     _errorMessage = null;
 
-    // 🔥 FIX: Jika dipanggil tanpa parameter (misal saat refresh awal), 
+    // 🔥 FIX: Jika dipanggil tanpa parameter (misal saat refresh awal),
     // pastikan month & year masuk agar server tidak log URL kosongan.
     final now = DateTime.now();
     int? effectiveMonth = month;
@@ -88,14 +100,14 @@ class AbsensiProvider with ChangeNotifier {
         month: effectiveMonth,
         year: effectiveYear,
       );
-      
+
       _myAbsensiList = absensiList ?? [];
-      
+
       // Update data hari ini (hanya jika tidak sedang memfilter tanggal lain)
       if (searchDate == null && month == null) {
         await fetchCurrentDayAbsensi();
       }
-      
+
       _calculateStatistics();
     } catch (e) {
       _errorMessage = 'Gagal mengambil data absensi: ${e.toString()}';
@@ -105,6 +117,21 @@ class AbsensiProvider with ChangeNotifier {
       if (!silent) setIsLoading(false);
       _isInitialLoadComplete = true;
       notifyListeners();
+    }
+  }
+
+  Future<Map<String, dynamic>> ajukanAbsensiLampau({
+    required HistoricalAttendanceRequest request,
+  }) async {
+    setIsLoading(true);
+    try {
+      final result = await _apiService.ajukanAbsensiLampau(request: request);
+      if (result['success'] == true) {
+        await fetchHistoryAbsensi(silent: true);
+      }
+      return result;
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -172,6 +199,10 @@ class AbsensiProvider with ChangeNotifier {
   }
 
   // -----------------------------
+  // Koreksi Lupa Absen Methods
+  // -----------------------------
+
+  // -----------------------------
   // Absensi Methods
   // -----------------------------
   Future<Map<String, dynamic>> absenMasuk({
@@ -186,36 +217,53 @@ class AbsensiProvider with ChangeNotifier {
     Map<String, dynamic> result;
     try {
       final stopwatch = Stopwatch()..start();
-      
+
       // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
       final compressStopwatch = Stopwatch()..start();
-      final File compressedFoto = await ImageCompressService.compressImage(foto);
+      final File compressedFoto = await ImageCompressService.compressImage(
+        foto,
+      );
       compressStopwatch.stop();
-      
+
       final int fileSize = await compressedFoto.length();
-      debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+        '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
 
       final uploadStopwatch = Stopwatch()..start();
-      result = await _apiService.absenMasuk(
-        foto: compressedFoto, 
-        lat: lat, 
-        lng: lng, 
-        status: status, 
+      Future<Map<String, dynamic>> upload(File photo) => _apiService.absenMasuk(
+        foto: photo,
+        lat: lat,
+        lng: lng,
+        status: status,
         isMocked: isMocked,
         onProgress: (sent, total) {
           _uploadProgress = sent / total;
           notifyListeners();
-        }
+        },
       );
+      result = status.toLowerCase() == 'hadir'
+          ? await validateFaceThenUpload(
+              photo: compressedFoto,
+              createDetector: _faceDetectionServiceFactory,
+              upload: upload,
+            )
+          : await upload(compressedFoto);
       uploadStopwatch.stop();
       stopwatch.stop();
-      
-      debugPrint('⏱️ [Audit] Upload Absen Masuk: ${uploadStopwatch.elapsedMilliseconds}ms');
-      debugPrint('⏱️ [Audit] Total Flow Absen Masuk: ${stopwatch.elapsed.inSeconds} detik');
+
+      debugPrint(
+        '⏱️ [Audit] Upload Absen Masuk: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Absen Masuk: ${stopwatch.elapsed.inSeconds} detik',
+      );
 
       if (result['success'] == true) {
         setIsLoading(false); // Tutup loading SEGERA setelah upload sukses
-        fetchHistoryAbsensi(silent: true); // Refresh history di background secara silent
+        fetchHistoryAbsensi(
+          silent: true,
+        ); // Refresh history di background secara silent
       } else {
         _errorMessage = result['message'] ?? 'Absen masuk gagal.';
         setIsLoading(false);
@@ -247,35 +295,49 @@ class AbsensiProvider with ChangeNotifier {
 
       // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
       final compressStopwatch = Stopwatch()..start();
-      final File compressedFoto = await ImageCompressService.compressImage(foto);
+      final File compressedFoto = await ImageCompressService.compressImage(
+        foto,
+      );
       File? compressedFileBukti;
       if (fileBukti != null) {
-        compressedFileBukti = await ImageCompressService.compressImage(fileBukti);
+        compressedFileBukti = await ImageCompressService.compressImage(
+          fileBukti,
+        );
       }
       compressStopwatch.stop();
 
       final int fileSize = await compressedFoto.length();
-      debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran Foto: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+        '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran Foto: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
 
       final uploadStopwatch = Stopwatch()..start();
-      result = await _apiService.absenPulang(
-        foto: compressedFoto, 
-        lat: lat, 
-        lng: lng, 
-        tipe: tipe, 
-        keterangan: keterangan,
-        fileBukti: compressedFileBukti,
-        isMocked: isMocked,
-        onProgress: (sent, total) {
-          _uploadProgress = sent / total;
-          notifyListeners();
-        }
+      result = await validateFaceThenUpload(
+        photo: compressedFoto,
+        createDetector: _faceDetectionServiceFactory,
+        upload: (photo) => _apiService.absenPulang(
+          foto: photo,
+          lat: lat,
+          lng: lng,
+          tipe: tipe,
+          keterangan: keterangan,
+          fileBukti: compressedFileBukti,
+          isMocked: isMocked,
+          onProgress: (sent, total) {
+            _uploadProgress = sent / total;
+            notifyListeners();
+          },
+        ),
       );
       uploadStopwatch.stop();
       stopwatch.stop();
-      
-      debugPrint('⏱️ [Audit] Upload Absen Pulang: ${uploadStopwatch.elapsedMilliseconds}ms');
-      debugPrint('⏱️ [Audit] Total Flow Absen Pulang: ${stopwatch.elapsed.inSeconds} detik');
+
+      debugPrint(
+        '⏱️ [Audit] Upload Absen Pulang: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Absen Pulang: ${stopwatch.elapsed.inSeconds} detik',
+      );
 
       if (result['success'] == true) {
         setIsLoading(false); // Tutup loading SEGERA
@@ -312,12 +374,17 @@ class AbsensiProvider with ChangeNotifier {
 
       // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
       final compressStopwatch = Stopwatch()..start();
-      final File compressedFoto = await ImageCompressService.compressImage(foto);
-      final List<File> compressedHasilKerja = await ImageCompressService.compressMultipleImages(hasilKerjaFiles);
+      final File compressedFoto = await ImageCompressService.compressImage(
+        foto,
+      );
+      final List<File> compressedHasilKerja =
+          await ImageCompressService.compressMultipleImages(hasilKerjaFiles);
       compressStopwatch.stop();
 
       final int fileSize = await compressedFoto.length();
-      debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran Utama: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+        '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran Utama: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
 
       final uploadStopwatch = Stopwatch()..start();
       result = await _apiService.absenLembur(
@@ -338,8 +405,12 @@ class AbsensiProvider with ChangeNotifier {
       uploadStopwatch.stop();
       stopwatch.stop();
 
-      debugPrint('⏱️ [Audit] Upload Absen Lembur: ${uploadStopwatch.elapsedMilliseconds}ms');
-      debugPrint('⏱️ [Audit] Total Flow Absen Lembur: ${stopwatch.elapsed.inSeconds} detik');
+      debugPrint(
+        '⏱️ [Audit] Upload Absen Lembur: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Absen Lembur: ${stopwatch.elapsed.inSeconds} detik',
+      );
 
       if (result['success'] == true) {
         setIsLoading(false);
@@ -374,10 +445,13 @@ class AbsensiProvider with ChangeNotifier {
 
       // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
       final compressStopwatch = Stopwatch()..start();
-      final List<File> compressedHasilKerja = await ImageCompressService.compressMultipleImages(hasilKerjaFiles);
+      final List<File> compressedHasilKerja =
+          await ImageCompressService.compressMultipleImages(hasilKerjaFiles);
       compressStopwatch.stop();
 
-      debugPrint('⏱️ [Audit] Kompresi Multiple: ${compressStopwatch.elapsedMilliseconds}ms');
+      debugPrint(
+        '⏱️ [Audit] Kompresi Multiple: ${compressStopwatch.elapsedMilliseconds}ms',
+      );
 
       final uploadStopwatch = Stopwatch()..start();
       result = await _apiService.submitLembur(
@@ -395,8 +469,12 @@ class AbsensiProvider with ChangeNotifier {
       uploadStopwatch.stop();
       stopwatch.stop();
 
-      debugPrint('⏱️ [Audit] Upload Submit Lembur: ${uploadStopwatch.elapsedMilliseconds}ms');
-      debugPrint('⏱️ [Audit] Total Flow Submit Lembur: ${stopwatch.elapsed.inSeconds} detik');
+      debugPrint(
+        '⏱️ [Audit] Upload Submit Lembur: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Submit Lembur: ${stopwatch.elapsed.inSeconds} detik',
+      );
 
       if (result['success'] == true) {
         setIsLoading(false);
@@ -416,7 +494,7 @@ class AbsensiProvider with ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> absenSakit({
-    required File fileBukti, 
+    required File fileBukti,
     required String catatan,
     DateTime? startDate,
     DateTime? endDate,
@@ -429,15 +507,19 @@ class AbsensiProvider with ChangeNotifier {
 
       // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
       final compressStopwatch = Stopwatch()..start();
-      final File compressedFileBukti = await ImageCompressService.compressImage(fileBukti);
+      final File compressedFileBukti = await ImageCompressService.compressImage(
+        fileBukti,
+      );
       compressStopwatch.stop();
 
       final int fileSize = await compressedFileBukti.length();
-      debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+        '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
 
       final uploadStopwatch = Stopwatch()..start();
       result = await _apiService.absenSakit(
-        fileBukti: compressedFileBukti, 
+        fileBukti: compressedFileBukti,
         catatan: catatan,
         startDate: startDate,
         endDate: endDate,
@@ -450,8 +532,12 @@ class AbsensiProvider with ChangeNotifier {
       uploadStopwatch.stop();
       stopwatch.stop();
 
-      debugPrint('⏱️ [Audit] Upload Absen Sakit: ${uploadStopwatch.elapsedMilliseconds}ms');
-      debugPrint('⏱️ [Audit] Total Flow Absen Sakit: ${stopwatch.elapsed.inSeconds} detik');
+      debugPrint(
+        '⏱️ [Audit] Upload Absen Sakit: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Absen Sakit: ${stopwatch.elapsed.inSeconds} detik',
+      );
 
       if (result['success'] == true) {
         await fetchHistoryAbsensi();
@@ -483,11 +569,15 @@ class AbsensiProvider with ChangeNotifier {
 
       // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
       final compressStopwatch = Stopwatch()..start();
-      final File compressedFileBukti = await ImageCompressService.compressImage(fileBukti);
+      final File compressedFileBukti = await ImageCompressService.compressImage(
+        fileBukti,
+      );
       compressStopwatch.stop();
 
       final int fileSize = await compressedFileBukti.length();
-      debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+        '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
 
       final uploadStopwatch = Stopwatch()..start();
       result = await _apiService.absenIzin(
@@ -505,8 +595,12 @@ class AbsensiProvider with ChangeNotifier {
       uploadStopwatch.stop();
       stopwatch.stop();
 
-      debugPrint('⏱️ [Audit] Upload Absen Izin: ${uploadStopwatch.elapsedMilliseconds}ms');
-      debugPrint('⏱️ [Audit] Total Flow Absen Izin: ${stopwatch.elapsed.inSeconds} detik');
+      debugPrint(
+        '⏱️ [Audit] Upload Absen Izin: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Absen Izin: ${stopwatch.elapsed.inSeconds} detik',
+      );
 
       if (result['success'] == true) {
         await fetchHistoryAbsensi();
@@ -557,7 +651,7 @@ class AbsensiProvider with ChangeNotifier {
     try {
       final formData = FormData.fromMap(data ?? {});
       final result = await _apiService.resubmitPengajuan(absensiId, formData);
-      
+
       if (result['success'] == true) {
         await fetchHistoryAbsensi();
       }
@@ -573,7 +667,7 @@ class AbsensiProvider with ChangeNotifier {
   // ✅ FIXED: Resubmit Absensi (sakit / izin / lembur)
   // -----------------------------
   // lib/providers/absensi_provider.dart
-// HANYA BAGIAN METHOD resubmitAbsensi yang diperbaiki
+  // HANYA BAGIAN METHOD resubmitAbsensi yang diperbaiki
 
   // ✅ FIXED: Resubmit dengan proper refresh
   Future<Map<String, dynamic>> resubmitAbsensi({
@@ -593,15 +687,17 @@ class AbsensiProvider with ChangeNotifier {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    debugPrint('🔄 [PROVIDER] Mulai resubmit untuk ID: $absensiId, Tipe: $tipe');
-    
+    debugPrint(
+      '🔄 [PROVIDER] Mulai resubmit untuk ID: $absensiId, Tipe: $tipe',
+    );
+
     setIsLoading(true);
     Map<String, dynamic> result;
-    
+
     try {
       final stopwatch = Stopwatch()..start();
       final compressStopwatch = Stopwatch()..start();
-      
+
       // ✅ Panggil API resubmit sesuai tipe
       if (tipe == 'sakit') {
         if (fileBukti == null) {
@@ -609,10 +705,13 @@ class AbsensiProvider with ChangeNotifier {
         } else {
           debugPrint('📤 [API] Calling resubmitSakit...');
           // 🔥 KOMPRESI GAMBAR
-          final File compressedFileBukti = await ImageCompressService.compressImage(fileBukti);
+          final File compressedFileBukti =
+              await ImageCompressService.compressImage(fileBukti);
           compressStopwatch.stop();
           final int fileSize = await compressedFileBukti.length();
-          debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+          debugPrint(
+            '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+          );
 
           final uploadStopwatch = Stopwatch()..start();
           result = await _apiService.resubmitSakit(
@@ -623,7 +722,9 @@ class AbsensiProvider with ChangeNotifier {
             endDate: endDate,
           );
           uploadStopwatch.stop();
-          debugPrint('⏱️ [Audit] Upload Resubmit Sakit: ${uploadStopwatch.elapsedMilliseconds}ms');
+          debugPrint(
+            '⏱️ [Audit] Upload Resubmit Sakit: ${uploadStopwatch.elapsedMilliseconds}ms',
+          );
         }
       } else if (tipe == 'izin') {
         if (fileBukti == null) {
@@ -631,10 +732,13 @@ class AbsensiProvider with ChangeNotifier {
         } else {
           debugPrint('📤 [API] Calling resubmitIzin...');
           // 🔥 KOMPRESI GAMBAR
-          final File compressedFileBukti = await ImageCompressService.compressImage(fileBukti);
+          final File compressedFileBukti =
+              await ImageCompressService.compressImage(fileBukti);
           compressStopwatch.stop();
           final int fileSize = await compressedFileBukti.length();
-          debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+          debugPrint(
+            '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+          );
 
           final uploadStopwatch = Stopwatch()..start();
           result = await _apiService.resubmitIzin(
@@ -646,18 +750,28 @@ class AbsensiProvider with ChangeNotifier {
             endDate: endDate,
           );
           uploadStopwatch.stop();
-          debugPrint('⏱️ [Audit] Upload Resubmit Izin: ${uploadStopwatch.elapsedMilliseconds}ms');
+          debugPrint(
+            '⏱️ [Audit] Upload Resubmit Izin: ${uploadStopwatch.elapsedMilliseconds}ms',
+          );
         }
       } else if (tipe == 'lembur') {
         if (hasilKerjaFiles == null || hasilKerjaFiles.isEmpty) {
-          result = {'success': false, 'message': 'Minimal 1 foto bukti wajib diisi'};
+          result = {
+            'success': false,
+            'message': 'Minimal 1 foto bukti wajib diisi',
+          };
         } else {
           debugPrint('📤 [API] Calling resubmitLembur...');
           // 🔥 KOMPRESI GAMBAR
-          final List<File> compressedHasilKerja = await ImageCompressService.compressMultipleImages(hasilKerjaFiles);
+          final List<File> compressedHasilKerja =
+              await ImageCompressService.compressMultipleImages(
+                hasilKerjaFiles,
+              );
           compressStopwatch.stop();
-          debugPrint('⏱️ [Audit] Kompresi Multiple: ${compressStopwatch.elapsedMilliseconds}ms');
-          
+          debugPrint(
+            '⏱️ [Audit] Kompresi Multiple: ${compressStopwatch.elapsedMilliseconds}ms',
+          );
+
           final uploadStopwatch = Stopwatch()..start();
           result = await _apiService.resubmitLembur(
             absensiId: absensiId,
@@ -671,29 +785,39 @@ class AbsensiProvider with ChangeNotifier {
             goals: goals ?? '',
           );
           uploadStopwatch.stop();
-          debugPrint('⏱️ [Audit] Upload Resubmit Lembur: ${uploadStopwatch.elapsedMilliseconds}ms');
+          debugPrint(
+            '⏱️ [Audit] Upload Resubmit Lembur: ${uploadStopwatch.elapsedMilliseconds}ms',
+          );
         }
       } else {
         result = {'success': false, 'message': 'Tipe absensi tidak dikenal'};
       }
 
       stopwatch.stop();
-      debugPrint('⏱️ [Audit] Total Flow Resubmit: ${stopwatch.elapsed.inSeconds} detik');
-      debugPrint('📥 [API] Response: ${result['success']} - ${result['message']}');
+      debugPrint(
+        '⏱️ [Audit] Total Flow Resubmit: ${stopwatch.elapsed.inSeconds} detik',
+      );
+      debugPrint(
+        '📥 [API] Response: ${result['success']} - ${result['message']}',
+      );
 
       // ✅ CRITICAL FIX: ALWAYS refresh dari server setelah resubmit
       if (result['success'] == true) {
-        debugPrint('✅ [REFRESH] Resubmit berhasil, fetching fresh data from server...');
-        
+        debugPrint(
+          '✅ [REFRESH] Resubmit berhasil, fetching fresh data from server...',
+        );
+
         // Clear dulu data lama
         _myAbsensiList.clear();
         _currentDayAbsensi = null;
         notifyListeners();
-        
+
         // Fetch data baru dari server
         await fetchHistoryAbsensi();
-        
-        debugPrint('✅ [REFRESH] Data berhasil diperbarui. Total records: ${_myAbsensiList.length}');
+
+        debugPrint(
+          '✅ [REFRESH] Data berhasil diperbarui. Total records: ${_myAbsensiList.length}',
+        );
       } else {
         _errorMessage = result['message'];
         debugPrint('❌ [ERROR] Resubmit gagal: ${result['message']}');
@@ -705,54 +829,62 @@ class AbsensiProvider with ChangeNotifier {
     } finally {
       setIsLoading(false);
     }
-    
+
     return result;
   }
 
   Future<Map<String, dynamic>> pengajuanTelat({
-  required File fileBukti,
-  required String keterangan,
-  required int absensiId,
-}) async {
-  setIsLoading(true);
-  Map<String, dynamic> result;
-  try {
-    final stopwatch = Stopwatch()..start();
-    
-    // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
-    final compressStopwatch = Stopwatch()..start();
-    final File compressedFileBukti = await ImageCompressService.compressImage(fileBukti);
-    compressStopwatch.stop();
+    required File fileBukti,
+    required String keterangan,
+    required int absensiId,
+  }) async {
+    setIsLoading(true);
+    Map<String, dynamic> result;
+    try {
+      final stopwatch = Stopwatch()..start();
 
-    final int fileSize = await compressedFileBukti.length();
-    debugPrint('⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      // 🔥 KOMPRESI GAMBAR SEBELUM KIRIM
+      final compressStopwatch = Stopwatch()..start();
+      final File compressedFileBukti = await ImageCompressService.compressImage(
+        fileBukti,
+      );
+      compressStopwatch.stop();
 
-    final uploadStopwatch = Stopwatch()..start();
-    result = await _apiService.pengajuanTelat(
-      fileBukti: compressedFileBukti,
-      keterangan: keterangan,
-      absensiId: absensiId,
-    );
-    uploadStopwatch.stop();
-    stopwatch.stop();
+      final int fileSize = await compressedFileBukti.length();
+      debugPrint(
+        '⏱️ [Audit] Kompresi: ${compressStopwatch.elapsedMilliseconds}ms, Ukuran: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
 
-    debugPrint('⏱️ [Audit] Upload Pengajuan Telat: ${uploadStopwatch.elapsedMilliseconds}ms');
-    debugPrint('⏱️ [Audit] Total Flow Pengajuan Telat: ${stopwatch.elapsed.inSeconds} detik');
+      final uploadStopwatch = Stopwatch()..start();
+      result = await _apiService.pengajuanTelat(
+        fileBukti: compressedFileBukti,
+        keterangan: keterangan,
+        absensiId: absensiId,
+      );
+      uploadStopwatch.stop();
+      stopwatch.stop();
 
-    if (result['success'] == true) {
-      await fetchHistoryAbsensi();
-    } else {
-      _errorMessage = result['message'] ?? 'Pengajuan telat gagal.';
+      debugPrint(
+        '⏱️ [Audit] Upload Pengajuan Telat: ${uploadStopwatch.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '⏱️ [Audit] Total Flow Pengajuan Telat: ${stopwatch.elapsed.inSeconds} detik',
+      );
+
+      if (result['success'] == true) {
+        await fetchHistoryAbsensi();
+      } else {
+        _errorMessage = result['message'] ?? 'Pengajuan telat gagal.';
+      }
+    } catch (e) {
+      _errorMessage = 'Error pengajuan telat: ${e.toString()}';
+      result = {'success': false, 'message': _errorMessage};
+    } finally {
+      setIsLoading(false);
+      notifyListeners();
     }
-  } catch (e) {
-    _errorMessage = 'Error pengajuan telat: ${e.toString()}';
-    result = {'success': false, 'message': _errorMessage};
-  } finally {
-    setIsLoading(false);
-    notifyListeners();
+    return result;
   }
-  return result;
-}
 
   void resetState() {
     _myAbsensiList = [];

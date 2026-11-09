@@ -5,14 +5,15 @@ class Absensi {
   // Helper to fix URLs
   static String? _fixUrl(String? url) {
     if (url == null || url.isEmpty || url.startsWith('http')) return url;
-    
+
     // BASE_URL in constants includes '/api/v1/', we need to strip it to get the domain root
     // Example BASE_URL: 'https://absensi.anselmudaberkarya.my.id/api/v1/'
     // Target domain root: 'https://absensi.anselmudaberkarya.my.id/'
     final baseUrl = ApiConstants.BASE_URL.replaceAll('/api/v1/', '/');
-    
+
     return '$baseUrl${url.startsWith('/') ? url.substring(1) : url}';
   }
+
   final int id;
   final int userId;
   final String status;
@@ -201,7 +202,8 @@ class Absensi {
       fileBukti: json['file_bukti']?.toString(),
       statusApproval: json['status_approval']?.toString(),
       catatanAdmin: json['catatan_admin']?.toString(),
-      keterangan: json['keterangan']?.toString() ??
+      keterangan:
+          json['keterangan']?.toString() ??
           json['catatan']?.toString() ??
           json['keterangan_izin_sakit']?.toString(),
       lemburStart: json['lembur_start']?.toString(),
@@ -256,12 +258,14 @@ class Absensi {
 
   String get approvedBy {
     if (workflowStatus == null) return "-";
-    final approved = workflowStatus!.entries.where((e) => e.value == "approved");
+    final approved = workflowStatus!.entries.where(
+      (e) => e.value == "approved",
+    );
     if (approved.isNotEmpty) {
       return approved.last.key;
     }
     return "-";
   }
 
-  bool get isLate => (lateMinutes ?? 0) > 0 && status.toLowerCase() == 'hadir'; 
+  bool get isLate => (lateMinutes ?? 0) > 0 && status.toLowerCase() == 'hadir';
 }
